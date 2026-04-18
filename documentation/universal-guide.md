@@ -125,7 +125,11 @@ The structure relies on layout-based authorization grouped by user segments:
 
 ## 5. UI Component Strategy
 
-To maintain **pixel-perfect parity** with the electron app while leveraging Server/Client components:
+**STRICT MANDATE: Exact UI Replication**
+We must have an exactly same replication of the UI as the offline CRM. The visual aesthetics, layout, and user experience must be a 1-to-1 match. 
+To achieve this, the Agent MUST refer directly to the respective UI files from the older codebase (`d:\Programming\ELECTRON JS\DIDP - Main\didp-crm\src`). If the original files for a specific component cannot be found, the Agent MUST ask the user to provide them.
+
+To maintain this **pixel-perfect parity** while leveraging Server/Client components:
 
 1.  **Component Separation**:
     *   **Server Components**: Data Fetching wrappers, Layouts, standard Table frames.

@@ -4,7 +4,7 @@ This document is a strict, sequential step-by-step guide mapping out the deploym
 
 ---
 
-## Phase 1: Foundation (Project Setup)
+## Phase 1: Foundation (Project Setup) [✅ Completed]
 
 **Goal:** Initialize the Next.js ecosystem, styling, and remote database connection.
 
@@ -17,7 +17,7 @@ This document is a strict, sequential step-by-step guide mapping out the deploym
 
 ---
 
-## Phase 2: Database & Auth Setup
+## Phase 2: Database & Auth Setup [✅ Completed]
 
 **Goal:** Migrate the SQLite Schema to Supabase PostgreSQL, establish the common login portal, and protect routes via RBAC middleware.
 
