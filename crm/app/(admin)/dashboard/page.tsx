@@ -115,7 +115,7 @@ export default function DashboardPage() {
                   value={selectedYear}
                   onChange={(e) => setSelectedYear(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  className="text-xs border border-gray-200 rounded px-1 py-0.5 bg-gray-50 text-gray-700 outline-none focus:border-emerald-500 cursor-pointer"
+                  className="text-xs border border-gray-200 rounded px-1 py-0.5 bg-gray-50 text-gray-900 outline-none focus:border-emerald-500 cursor-pointer"
                 >
                   {yearsList.map(y => (
                     <option key={y} value={y}>{y}</option>
