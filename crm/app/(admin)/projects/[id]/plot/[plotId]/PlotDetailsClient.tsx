@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, User, Plus, Ruler, Banknote, Trophy,
-  CheckCircle2, XCircle, Percent, HandCoins, Search, X
+  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
@@ -11,6 +11,8 @@ import {
   createBooking, addPayment, confirmBooking,
   cancelBooking, updateBookingDiscount
 } from '../../../../plots.actions';
+import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
+import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
 
 export default function PlotDetailsClient({
   initialPlot, clients, consultants, projectId, isAdmin
@@ -26,6 +28,11 @@ export default function PlotDetailsClient({
   const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
 
+  // PDF Preview Modal
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pdfFileName, setPdfFileName] = useState('');
+
   // Add Client form
   const [clientSearch, setClientSearch] = useState('');
   const [selectedClientId, setSelectedClientId] = useState('');
@@ -33,6 +40,7 @@ export default function PlotDetailsClient({
     total_amount: String(plot.price || ''),
     discount_amount: '',
     consultant_id: '',
+    commission_percent: ''
   });
 
   // Payment form
@@ -63,6 +71,7 @@ export default function PlotDetailsClient({
       total_amount: parseFloat(addClientForm.total_amount) || plot.price || 0,
       discount_amount: parseFloat(addClientForm.discount_amount) || 0,
       consultant_id: addClientForm.consultant_id || undefined,
+      commission_percent: parseFloat(addClientForm.commission_percent) || 0,
     });
     if (!result.success) { alert(`Failed: ${result.error}`); return; }
     reload();
@@ -104,6 +113,25 @@ export default function PlotDetailsClient({
     const result = await updateBookingDiscount(activeBookingId, parseFloat(discountValue) || 0);
     if (!result.success) { alert(`Failed: ${result.error}`); return; }
     reload();
+  };
+
+  const handlePrintWelcomeLetter = async (booking: any) => {
+    try {
+      const payload = {
+        name: booking.client?.name || 'Client',
+        client_name: booking.client?.name || 'Client',
+        // Pass any necessary data here for the template
+      };
+      const result = await generateWelcomeLetter(payload, 'client', true);
+      if (result) {
+        setPdfDoc(result.doc);
+        setPdfFileName(result.fileName);
+        setShowPdfModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate Welcome Letter');
+    }
   };
 
   // ---- DERIVED ----
@@ -240,6 +268,14 @@ export default function PlotDetailsClient({
                           {booking.status}
                         </span>
                         {/* Admin Actions */}
+                        {isAdmin && isConfirmed && (
+                           <button
+                             onClick={() => handlePrintWelcomeLetter(booking)}
+                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors"
+                           >
+                             <Printer className="w-3.5 h-3.5" /> Welcome Letter
+                           </button>
+                        )}
                         {isAdmin && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
                           <button
                             onClick={() => handleConfirm(booking.id, booking.client_id)}
@@ -388,6 +424,7 @@ export default function PlotDetailsClient({
                   {filteredClients.length === 0 && <p className="p-3 text-sm text-gray-400 text-center">No clients found</p>}
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Agreed Amount</label>
                 <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
@@ -406,15 +443,27 @@ export default function PlotDetailsClient({
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Consultant (optional)</label>
-                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
+                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm bg-white"
                   value={addClientForm.consultant_id}
                   onChange={e => setAddClientForm({ ...addClientForm, consultant_id: e.target.value })}
                 >
-                  <option value="">None</option>
-                  {consultants.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <option value="">No Consultant</option>
+                  {consultants.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.consultant_code || 'No Code'})</option>
+                  ))}
                 </select>
               </div>
-              <div className="flex gap-3 pt-2">
+              {addClientForm.consultant_id && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Commission Rate (%)</label>
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
+                    value={addClientForm.commission_percent}
+                    onChange={e => setAddClientForm({ ...addClientForm, commission_percent: e.target.value })}
+                    placeholder="e.g. 10"
+                  />
+                </div>
+              )}
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
                 <button type="button" onClick={() => setShowAddClientModal(false)}
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
                 <button type="submit" disabled={!selectedClientId}
@@ -495,6 +544,18 @@ export default function PlotDetailsClient({
           </div>
         </div>
       )}
+
+      {/* PDF PREVIEW MODAL */}
+      <PDFPreviewModal
+        isOpen={showPdfModal}
+        onClose={() => {
+          setShowPdfModal(false);
+          setPdfDoc(null);
+        }}
+        pdfDoc={pdfDoc}
+        fileName={pdfFileName}
+        title="Welcome Letter Preview"
+      />
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import {
-  Search, Filter, Plus, Users, Download
+  Search, Filter, Plus, Users, ArrowUpRight
 } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import BackLink from '@/components/ui/BackLink';
@@ -79,6 +79,12 @@ export default function EmployeeListClient({ initialEmployees }: { initialEmploy
             Manage credentials and access for {employees.length} active team members.
           </p>
         </div>
+        <Link
+          href="/employees/new"
+          className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-sm transition-colors ${theme.button}`}
+        >
+          <Plus className="w-4 h-4" /> Add Team Member
+        </Link>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 flex flex-col gap-4">
@@ -144,10 +150,10 @@ export default function EmployeeListClient({ initialEmployees }: { initialEmploy
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700 w-24">Code</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Name</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Designation</th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Contractual Payment</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Salary</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Phone</th>
                     <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">Role</th>
-                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">Download</th>
+                    <th className="px-6 py-3 text-right text-sm font-semibold text-gray-700">View</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -162,13 +168,12 @@ export default function EmployeeListClient({ initialEmployees }: { initialEmploy
                       <td className="px-6 py-4 text-sm font-medium text-gray-600 whitespace-nowrap">{emp.phone || '—'}</td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap"><Badge variant="info">{emp.role}</Badge></td>
                       <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <button
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors border border-teal-100"
-                          title="Generate Welcome Letter"
-                          onClick={() => alert("Welcome letter generation porting in progress")}
+                        <Link
+                          href={`/employees/${emp.id}`}
+                          className="inline-flex items-center gap-1 text-sm font-semibold text-teal-600 hover:text-teal-700 bg-teal-50 hover:bg-teal-100 px-3 py-1.5 rounded-md transition-colors"
                         >
-                          <Download className="w-3.5 h-3.5" /> Contractual Letter
-                        </button>
+                          View <ArrowUpRight className="w-3.5 h-3.5" />
+                        </Link>
                       </td>
                     </tr>
                   ))}

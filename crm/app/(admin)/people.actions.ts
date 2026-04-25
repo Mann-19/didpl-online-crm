@@ -44,12 +44,38 @@ function generateEntityCode(prefix: string, name: string) {
 
 export async function addClient(formData: any) {
   const supabase = await createClient()
-  
   const client_code = generateEntityCode('CLI', formData.name)
-  
   const { error } = await supabase.from('clients').insert([{ ...formData, client_code }])
-  if (error) throw new Error(error.message)
+  if (error) return { success: false, error: error.message }
   revalidatePath('/clients/list')
+  return { success: true }
+}
+
+export async function getClientById(clientId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('clients')
+    .select(`
+      *,
+      bookings (
+        id, status, total_amount, discount_amount, booking_date,
+        plots ( id, plot_number, project_id, projects ( id, name ) ),
+        payments ( id, amount, payment_date, payment_mode, transaction_id, description )
+      )
+    `)
+    .eq('id', clientId)
+    .single()
+  if (error) { console.error('Error fetching client:', error); return null }
+  return data
+}
+
+export async function updateClient(clientId: string, formData: any): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('clients').update(formData).eq('id', clientId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/clients/${clientId}`)
+  revalidatePath('/clients/list')
+  return { success: true }
 }
 
 // --- CONSULTANTS ---
@@ -97,6 +123,66 @@ export async function addConsultant(formData: any) {
   revalidatePath('/consultants/list')
 }
 
+export async function getConsultantById(consultantId: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('consultants')
+    .select(`
+      *,
+      bookings (
+        id, status, total_amount, discount_amount, commission_amount, booking_date,
+        client:client_id ( id, name, phone ),
+        plot:plot_id ( id, plot_number, project:project_id ( id, name ) ),
+        payments ( id, amount, payment_date, payment_mode, description, entity_type )
+      )
+    `)
+    .eq('id', consultantId)
+    .single()
+  if (error) { console.error('Error fetching consultant:', error); return null }
+
+  const { data: payouts } = await supabase
+    .from('payments')
+    .select('*')
+    .eq('entity_id', consultantId)
+    .eq('entity_type', 'consultant')
+    .eq('transaction_type', 'debit')
+    .order('payment_date', { ascending: false })
+
+  return { ...data, payouts: payouts || [] }
+}
+
+export async function updateConsultant(consultantId: string, formData: any): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('consultants').update(formData).eq('id', consultantId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/consultants/${consultantId}`)
+  revalidatePath('/consultants/list')
+  return { success: true }
+}
+
+export async function addConsultantPayout(formData: {
+  consultant_id: string;
+  amount: number;
+  payment_date: string;
+  payment_mode: string;
+  notes: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').insert([{
+    entity_id: formData.consultant_id,
+    entity_type: 'consultant',
+    transaction_type: 'debit',
+    amount: formData.amount,
+    payment_date: formData.payment_date,
+    payment_mode: formData.payment_mode,
+    description: formData.notes || 'Commission Payout',
+    receipt_type: 'payment'
+  }])
+  if (error) return { success: false, error: error.message }
+  revalidatePath(`/consultants/${formData.consultant_id}`)
+  return { success: true }
+}
+
 // --- EMPLOYEES ---
 export async function getEmployees() {
   const supabase = await createClient()
@@ -116,4 +202,24 @@ export async function getEmployees() {
     name: emp.profiles?.full_name || 'Unknown',
     phone: emp.profiles?.phone || ''
   }))
+}
+
+export async function addEmployee(formData: any): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const employee_code = generateEntityCode('EMP', formData.name || 'EMP')
+  const { error } = await supabase.from('employees').insert([{
+    employee_code,
+    designation: formData.designation || null,
+    salary: formData.salary ? parseFloat(formData.salary) : null,
+    joining_date: formData.joining_date || null,
+    address: formData.address || null,
+    emergency_contact: formData.emergency_contact || null,
+    bank_name: formData.bank_name || null,
+    account_number: formData.account_number || null,
+    ifsc_code: formData.ifsc_code || null,
+    pan_number: formData.pan_number || null,
+  }])
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/employees/list')
+  return { success: true }
 }

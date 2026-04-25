@@ -11,12 +11,19 @@ export default function EmployeesMainPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <ActionCard
           title="View Team Directory"
           description="Browse through your entire staff network."
           icon={<Users className="w-7 h-7 text-teal-600" />}
           href="/employees/list"
+          variant="teal"
+        />
+        <ActionCard
+          title="Add Team Member"
+          description="Register a new employee with their role and details."
+          icon={<UserPlus className="w-7 h-7 text-teal-600" />}
+          href="/employees/new"
           variant="teal"
         />
       </div>

@@ -39,7 +39,7 @@ export async function getClientDashboardData() {
 
   // Fetch Payments linked to this client's bookings
   const bookingIds = bookings?.map(b => b.id) || []
-  let paymentsData = []
+  let paymentsData: any[] = []
   
   if (bookingIds.length > 0) {
     const { data: p } = await supabase

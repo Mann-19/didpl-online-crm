@@ -4,7 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 interface BackLinkProps {
   href: string;
   dirname: string;
-  accent?: 'blue' | 'amber' | 'teal' | 'emerald';
+  accent?: 'blue' | 'amber' | 'teal' | 'emerald' | 'violet';
 }
 
 export default function BackLink({ href, dirname, accent = 'blue' }: BackLinkProps) {
@@ -13,6 +13,7 @@ export default function BackLink({ href, dirname, accent = 'blue' }: BackLinkPro
     amber: 'text-amber-600 hover:text-amber-800',
     teal: 'text-teal-600 hover:text-teal-800',
     emerald: 'text-emerald-600 hover:text-emerald-800',
+    violet: 'text-violet-600 hover:text-violet-800',
   };
 
   return (

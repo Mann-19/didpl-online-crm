@@ -58,6 +58,16 @@ export async function addPayment(formData: {
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
+  // Fetch booking to check commission
+  const { data: booking } = await supabase.from('bookings').select('commission_percent, consultant_id, commission_amount, tds_amount').eq('id', formData.booking_id).single()
+
+  let commission_amount = 0;
+  let tds_amount = 0;
+  if (booking && booking.consultant_id && booking.commission_percent) {
+    commission_amount = formData.amount * (booking.commission_percent / 100);
+    tds_amount = commission_amount * 0.02; // Fixed 2% TDS
+  }
+
   const { error } = await supabase
     .from('payments')
     .insert([{
@@ -70,12 +80,22 @@ export async function addPayment(formData: {
       entity_id: formData.entity_id,
       entity_type: 'client',
       transaction_type: 'credit',
-      receipt_type: 'payment'
+      receipt_type: 'payment',
+      commission_amount,
+      tds_amount
     }])
 
   if (error) {
     console.error('Error adding payment:', error)
     return { success: false, error: error.message }
+  }
+
+  // Update booking aggregates
+  if (commission_amount > 0) {
+    await supabase.from('bookings').update({
+      commission_amount: ((booking as any)?.commission_amount || 0) + commission_amount,
+      tds_amount: ((booking as any)?.tds_amount || 0) + tds_amount
+    }).eq('id', formData.booking_id);
   }
 
   revalidatePath('/projects')
@@ -88,6 +108,7 @@ export async function createBooking(formData: {
   total_amount: number;
   discount_amount?: number;
   consultant_id?: string;
+  commission_percent?: number;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
@@ -99,6 +120,7 @@ export async function createBooking(formData: {
       total_amount: formData.total_amount,
       discount_amount: formData.discount_amount || 0,
       consultant_id: formData.consultant_id || null,
+      commission_percent: formData.commission_percent || 0,
       status: 'pending'  // always start as negotiation/pending
     }])
 

@@ -6,8 +6,9 @@ import { usePathname } from 'next/navigation';
 import {
   Home, Users, FolderKanban, UserCheck,
   User, Coins, BarChart3, LogOut,
-  ChevronLeft
+  ChevronLeft, ReceiptText
 } from 'lucide-react';
+
 import { createClient } from '@/utils/supabase/client';
 import { useRouter } from 'next/navigation';
 
