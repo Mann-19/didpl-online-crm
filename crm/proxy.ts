@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   try {
   let supabaseResponse = NextResponse.next({
     request,
