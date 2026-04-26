@@ -6,9 +6,23 @@ const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
 export async function middleware(request: NextRequest) {
   try {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+    // 1. Explicit Env Var Check
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return new NextResponse(
+        `CONFIGURATION ERROR: Missing Supabase Environment Variables in Vercel Dashboard. 
+        URL: ${supabaseUrl ? 'Present' : 'MISSING'}
+        Key: ${supabaseAnonKey ? 'Present' : 'MISSING'}
+        Please add them in Vercel -> Settings -> Environment Variables and then REDEPLOY.`,
+        { status: 200, headers: { 'content-type': 'text/plain' } }
+      )
+    }
+
+    let supabaseResponse = NextResponse.next({
+      request,
+    })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -103,9 +117,8 @@ export async function middleware(request: NextRequest) {
   } catch (error: any) {
     console.error('Middleware Error:', error)
     return new NextResponse(
-      'Middleware Invocation Failed. Error: ' + (error?.message || 'Unknown error') + 
-      ' | Make sure your Environment Variables are properly set in the Vercel dashboard.', 
-      { status: 500 }
+      `DEBUG ERROR: ${error?.message || 'Unknown error'}\n\nStack: ${error?.stack || 'No stack'}`,
+      { status: 200, headers: { 'content-type': 'text/plain' } }
     )
   }
 }
