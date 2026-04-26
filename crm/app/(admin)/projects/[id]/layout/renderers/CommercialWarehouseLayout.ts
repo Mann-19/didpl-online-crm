@@ -3,66 +3,63 @@
 export function renderCommercialWarehouseLayout({ grid, dataMap, utils }) {
     const { placePlot, placeCell } = utils;
 
-    grid.style.width = "60vw";
-    grid.style.maxWidth = "100%";
+    // Layout configuration: 2 rows of 13 plots each = 26 plots
+    const PLOTS_PER_ROW = 13;
+    const PLOT_WIDTH = 3;
+    const PLOT_HEIGHT = 4;
+    const ROAD_HEIGHT = 2;
+    const GAP = 1;
+
+    const TOTAL_COLS = (PLOTS_PER_ROW * PLOT_WIDTH) + ((PLOTS_PER_ROW - 1) * GAP) + 4; // Adding some padding
+    const TOTAL_ROWS = (2 * PLOT_HEIGHT) + ROAD_HEIGHT + 4;
+
+    grid.style.gridTemplateColumns = `repeat(${TOTAL_COLS}, 1fr)`;
+    grid.style.gridTemplateRows = `repeat(${TOTAL_ROWS}, 1fr)`;
+    grid.style.aspectRatio = `${TOTAL_COLS} / ${TOTAL_ROWS}`;
+    grid.style.width = "100%";
+    grid.style.maxWidth = "1200px";
     grid.style.margin = "0 auto";
-    grid.style.padding = "10px";
 
-    const PLOT_DIM = 4;
-    const ROAD_DIM = 1;
-    const TOTAL_COLS = 5;
-    const TOTAL_ROWS = 6;
-    const GRID_COLS_UNITS = (TOTAL_COLS * PLOT_DIM) + ((TOTAL_COLS + 1) * ROAD_DIM); // 26
-    const GRID_ROWS_UNITS = (TOTAL_ROWS * PLOT_DIM) + ((TOTAL_ROWS + 1) * ROAD_DIM); // 31
+    // --- Road ---
+    // Central road between the two rows of plots
+    placeCell({
+        row: PLOT_HEIGHT + 2,
+        col: 2,
+        span: TOTAL_COLS - 2,
+        className: "h-road",
+        label: "INTERNAL ROAD (9.0 M)"
+    });
 
-    grid.style.gridTemplateColumns = `repeat(${GRID_COLS_UNITS}, 1fr)`;
-    grid.style.gridTemplateRows = `repeat(${GRID_ROWS_UNITS}, 1fr)`;
-    grid.style.aspectRatio = `${GRID_COLS_UNITS} / ${GRID_ROWS_UNITS}`;
-
-    const START_COL = 1;
-    const START_ROW = 1;
-
-    for (let i = 0; i <= TOTAL_ROWS; i++) {
-        const roadRow = START_ROW + (i * (PLOT_DIM + ROAD_DIM));
-        placeCell({
-            row: roadRow,
-            col: START_COL,
-            rowSpan: ROAD_DIM,
-            span: GRID_COLS_UNITS,
-            className: "h-road",
-            label: ""
-        });
-    }
-
-    for (let i = 0; i <= TOTAL_COLS; i++) {
-        const roadCol = START_COL + (i * (PLOT_DIM + ROAD_DIM));
-        const verticalRoad = document.createElement("div");
-        verticalRoad.className = "vertical-road internal-road";
-        verticalRoad.style.gridColumn = `${roadCol} / span ${ROAD_DIM}`;
-        verticalRoad.style.gridRow = `${START_ROW} / span ${GRID_ROWS_UNITS}`;
-        verticalRoad.style.zIndex = "10";
-        grid.appendChild(verticalRoad);
-    }
-
+    // --- Plots ---
     let plotIdx = 1;
-    for (let r = 0; r < TOTAL_ROWS; r++) {
-        for (let c = 0; c < TOTAL_COLS; c++) {
-            const plotRow = START_ROW + ROAD_DIM + (r * (PLOT_DIM + ROAD_DIM));
-            const plotCol = START_COL + ROAD_DIM + (c * (PLOT_DIM + ROAD_DIM));
 
-            if (plotIdx <= 26) {
-                placePlot(plotIdx, plotRow, plotCol, dataMap[plotIdx], PLOT_DIM, PLOT_DIM);
-                plotIdx++;
-            } else {
-                const emptyCell = document.createElement("div");
-                emptyCell.style.gridRow = `${plotRow} / span ${PLOT_DIM}`;
-                emptyCell.style.gridColumn = `${plotCol} / span ${PLOT_DIM}`;
-                emptyCell.style.backgroundColor = "#e0e0e0";
-                emptyCell.style.border = "1px dashed #aaaaaa";
-                emptyCell.style.borderRadius = "4px";
-                emptyCell.style.zIndex = "5";
-                grid.appendChild(emptyCell);
-            }
+    // Top Row (1-13)
+    for (let i = 0; i < PLOTS_PER_ROW; i++) {
+        const col = 2 + (i * (PLOT_WIDTH + GAP));
+        if (dataMap[plotIdx]) {
+            placePlot(plotIdx, 2, col, dataMap[plotIdx], PLOT_HEIGHT, PLOT_WIDTH);
         }
+        plotIdx++;
     }
+
+    // Bottom Row (14-26)
+    for (let i = 0; i < PLOTS_PER_ROW; i++) {
+        const col = 2 + (i * (PLOT_WIDTH + GAP));
+        if (dataMap[plotIdx]) {
+            placePlot(plotIdx, PLOT_HEIGHT + ROAD_HEIGHT + 2, col, dataMap[plotIdx], PLOT_HEIGHT, PLOT_WIDTH);
+        }
+        plotIdx++;
+    }
+
+    // --- Entrance ---
+    const entryMarker = document.createElement("div");
+    entryMarker.className = "entry-marker";
+    entryMarker.innerHTML = `<div class="entry-arrow">▶</div><div class="entry-text">ENTRY</div>`;
+    entryMarker.style.gridColumn = "1 / 2";
+    entryMarker.style.gridRow = `${PLOT_HEIGHT + 2} / span ${ROAD_HEIGHT}`;
+    entryMarker.style.display = "flex";
+    entryMarker.style.flexDirection = "row";
+    entryMarker.style.alignItems = "center";
+    entryMarker.style.gap = "4px";
+    grid.appendChild(entryMarker);
 }

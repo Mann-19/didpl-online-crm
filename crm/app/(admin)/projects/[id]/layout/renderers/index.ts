@@ -4,12 +4,21 @@ import { renderCommercialWarehouseLayout } from "./CommercialWarehouseLayout";
 
 // Registry of project renderers - matched by lowercase project name substring
 const PROJECT_RENDERERS: Record<string, Function> = {
+    // Specific project names first
+    'aero town logistic park': renderCommercialWarehouseLayout,
+    'aerotown logistic park': renderCommercialWarehouseLayout,
+    'logistic park': renderCommercialWarehouseLayout,
+    
     // Dholera Homes 3 — must be checked BEFORE 'dholera' alone to avoid false match
     'dholera homes 3': renderDholeraHomes3Layout,
     'dholera-homes-3': renderDholeraHomes3Layout,
     'dholera homes': renderDholeraHomes3Layout,   // catch "Dholera Homes 3" via substring
+    
     // AeroTown — catches "AeroTown Residency", "Aerotown", etc.
+    'aerotown residency': renderAerotownLayout,
+    'aero town residency': renderAerotownLayout,
     'aerotown': renderAerotownLayout,
+    
     // Commercial Warehouse variants
     'commercial warehouse': renderCommercialWarehouseLayout,
     'airport estate commercial': renderCommercialWarehouseLayout,
