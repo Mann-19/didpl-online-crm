@@ -13,8 +13,15 @@ export default async function ClientLayout({
 
   let fullName = 'Client'
   if (user) {
-    const { data } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-    if (data?.full_name) fullName = data.full_name
+    const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single()
+    
+    if (profile?.role !== 'client') {
+      redirect('/dashboard')
+    }
+    
+    if (profile?.full_name) fullName = profile.full_name
+  } else {
+    redirect('/login')
   }
 
   return (

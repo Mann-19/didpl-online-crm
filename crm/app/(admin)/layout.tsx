@@ -18,7 +18,7 @@ export default async function AdminLayout({
     .eq('id', user.id)
     .single()
 
-  if (profile?.role === 'client') {
+  if (!profile || profile.role === 'client') {
     redirect('/my-portal')
   }
 
