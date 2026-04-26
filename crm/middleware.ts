@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-export const runtime = 'edge'  // ← Add this line
+export const runtime = 'environmental-edge'  // ← Add this line
 
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
