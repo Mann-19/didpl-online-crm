@@ -5,6 +5,7 @@ import { createServerClient } from '@supabase/ssr'
 const INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
 
 export async function middleware(request: NextRequest) {
+  try {
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -99,6 +100,14 @@ export async function middleware(request: NextRequest) {
   }
 
   return supabaseResponse
+  } catch (error: any) {
+    console.error('Middleware Error:', error)
+    return new NextResponse(
+      'Middleware Invocation Failed. Error: ' + (error?.message || 'Unknown error') + 
+      ' | Make sure your Environment Variables are properly set in the Vercel dashboard.', 
+      { status: 500 }
+    )
+  }
 }
 
 export const config = {
