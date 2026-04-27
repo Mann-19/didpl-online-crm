@@ -1,21 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { User, Lock, ArrowRight, AlertCircle, RefreshCw } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 
-export default function LoginPage() {
+function LoginContent() {
   const searchParams = useSearchParams();
   const expired = searchParams.get('expired');
   const router = useRouter();
-  
+  const supabase = createClient();
+
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [isPending, setIsPending] = useState(false);
-  
+
   const [errorMsg, setErrorMsg] = useState('');
   const [showErrorModal, setShowErrorModal] = useState(false);
 
@@ -32,7 +33,7 @@ export default function LoginPage() {
 
     setIsPending(true);
     setErrorMsg('');
-    
+
     try {
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -60,7 +61,7 @@ export default function LoginPage() {
 
     setIsPending(true);
     setErrorMsg('');
-    
+
     try {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
@@ -70,14 +71,13 @@ export default function LoginPage() {
 
       const data = await res.json();
 
-      if (!res.ok) {
-        setErrorMsg(data.error || 'Invalid code');
+      if (!res.ok || !data) {
+        setErrorMsg(data?.error || 'Invalid code');
         setIsPending(false);
         return;
       }
 
       // Verify the token with Supabase client to establish session
-      const supabase = createClient();
       const { error: verifyError } = await supabase.auth.verifyOtp({
         token_hash: data.token_hash,
         type: data.type || 'magiclink'
@@ -89,9 +89,9 @@ export default function LoginPage() {
         return;
       }
 
-      // Force a hard navigation to apply cookies and layout re-evaluation
-      window.location.href = '/dashboard';
-      
+      // Soft navigation to dashboard
+      router.push('/dashboard');
+
     } catch (err) {
       setErrorMsg('Something went wrong. Please try again.');
       setIsPending(false);
@@ -268,5 +268,17 @@ export default function LoginPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

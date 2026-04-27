@@ -10,11 +10,11 @@ export default async function ClientLayout({
 }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
-  let fullName = 'Client'
+ 
+  let fullName = 'Dev Client'
   if (user) {
-    const { data } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
-    if (data?.full_name) fullName = data.full_name
+    const { data: profile } = await supabase.from('profiles').select('full_name, role').eq('id', user.id).single()
+    if (profile?.full_name) fullName = profile.full_name
   }
 
   return (

@@ -1,5 +1,5 @@
 import { renderAerotownLayout } from "./AerotownLayout";
-import { renderAerotownLogisticParkLayout } from "./AerotownLogisticParkLayout";
+
 import { renderDholeraHomes3Layout } from "./DholeraHomes3Layout";
 import { renderCommercialWarehouseLayout } from "./CommercialWarehouseLayout";
 
@@ -7,16 +7,19 @@ import { renderCommercialWarehouseLayout } from "./CommercialWarehouseLayout";
 // ORDER MATTERS: more specific keys must come before broader ones.
 // e.g. 'aerotown logistic park' must precede 'aerotown' to avoid false match.
 const PROJECT_RENDERERS: Record<string, Function> = {
-    // Dholera Homes 3 — must be checked BEFORE 'dholera' alone
+    // Specific project names first
+    'aero town logistic park': renderCommercialWarehouseLayout,
+    'aerotown logistic park': renderCommercialWarehouseLayout,
+    'logistic park': renderCommercialWarehouseLayout,
+
+    // Dholera Homes 3 — must be checked BEFORE 'dholera' alone to avoid false match
     'dholera homes 3': renderDholeraHomes3Layout,
     'dholera-homes-3': renderDholeraHomes3Layout,
-    'dholera homes': renderDholeraHomes3Layout,
+    'dholera homes': renderDholeraHomes3Layout,   // catch "Dholera Homes 3" via substring
 
-    // AeroTown Logistic Park — must be checked BEFORE 'aerotown' alone
-    'aerotown logistic park': renderAerotownLogisticParkLayout,
-    'logistic park': renderAerotownLogisticParkLayout,
-
-    // AeroTown Residency — catches "AeroTown Residency", "Aerotown", etc.
+    // AeroTown — catches "AeroTown Residency", "Aerotown", etc.
+    'aerotown residency': renderAerotownLayout,
+    'aero town residency': renderAerotownLayout,
     'aerotown': renderAerotownLayout,
 
     // Commercial Warehouse variants
