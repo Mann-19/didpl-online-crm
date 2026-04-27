@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Public routes
-  if (path === '/login' || path.startsWith('/_next') || path.includes('.')) {
+  if (path === '/login' || path.startsWith('/api/auth') || path.startsWith('/_next') || path.includes('.')) {
     // If logged in and hitting login page, redirect to dashboard or portal
     if (user && path === '/login') {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
