@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { filterActivePlots } from '../project-utils'
 
 // Helper to calculate project stats
 function calculateProjectStats(project: any, plots: any[]) {
@@ -99,10 +100,11 @@ export async function getProjectsWithStats() {
     plotsByProject[plot.project_id].push(plot)
   })
 
-  // Calculate and return stats
-  return projects.map(project => 
-    calculateProjectStats(project, plotsByProject[project.id] || [])
-  )
+  // Calculate and return stats (filter active plots per-project before computing)
+  return projects.map(project => {
+    const projectPlots = filterActivePlots(project.name, plotsByProject[project.id] || [])
+    return calculateProjectStats(project, projectPlots)
+  })
 }
 
 // 2. Get Single Project Details
@@ -136,11 +138,14 @@ export async function getProjectOverview(projectId: string) {
     return null
   }
 
-  const stats = calculateProjectStats(project, plots || [])
+  // Filter to active plots only (no-op for other projects)
+  const activePlots = filterActivePlots(project.name, plots || [])
+
+  const stats = calculateProjectStats(project, activePlots)
   
   // Calculate status counts
   const statusCounts = { available: 0, token: 0, partial: 0, sold: 0 }
-  plots?.forEach((plot: any) => {
+  activePlots?.forEach((plot: any) => {
     if (plot.status === 'available') statusCounts.available++
     else if (plot.status === 'token_paid') statusCounts.token++
     else if (plot.status === 'partially_paid') statusCounts.partial++
@@ -153,6 +158,14 @@ export async function getProjectOverview(projectId: string) {
 // 3. Get Project Plots (includes bookings+payments for layout coloring)
 export async function getProjectPlots(projectId: string) {
   const supabase = await createClient()
+
+  // Fetch project name so we can apply active-plot filtering if needed
+  const { data: projectMeta } = await supabase
+    .from('projects')
+    .select('name')
+    .eq('id', projectId)
+    .single()
+
   const { data, error } = await supabase
     .from('plots')
     .select(`
@@ -170,8 +183,11 @@ export async function getProjectPlots(projectId: string) {
     return []
   }
 
+  // Filter to active plots only (no-op for other projects)
+  const activePlots = filterActivePlots(projectMeta?.name ?? '', data || [])
+
   // Sort numerically so plot 2 comes before plot 10
-  return (data || []).sort((a: any, b: any) => {
+  return activePlots.sort((a: any, b: any) => {
     const numA = parseInt(a.plot_number, 10)
     const numB = parseInt(b.plot_number, 10)
     if (!isNaN(numA) && !isNaN(numB)) return numA - numB
