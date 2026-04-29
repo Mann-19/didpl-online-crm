@@ -459,7 +459,7 @@ export default function PlotDetailsClient({
                         {/* Discount button */}
                         {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                           <button
-                            onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setSaveStatus('idle'); setShowDiscountModal(true); }}
+                            onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setShowDiscountModal(true); }}
                             className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-1"
                           >
                             <Percent className="w-3 h-3" /> {isEmployee ? 'Request Discount Change' : 'Update Discount'}
@@ -473,7 +473,7 @@ export default function PlotDetailsClient({
                           <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment History</h4>
                           {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                             <button
-                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setSaveStatus('idle'); setShowPaymentModal(true); }}
+                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setShowPaymentModal(true); }}
                               className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
                             >
                               <HandCoins className="w-3 h-3" /> {isEmployee ? 'Request Payment' : 'Add Payment'}
@@ -616,7 +616,7 @@ export default function PlotDetailsClient({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
-                  disabled={saveStatus === 'pending_review'}
+                  disabled={isPending}
                   value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
               </div>
               <div>
@@ -663,7 +663,7 @@ export default function PlotDetailsClient({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Discount Amount (₹)</label>
                 <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
-                  disabled={saveStatus === 'pending_review'}
+                  disabled={isPending}
                   placeholder="0" value={discountValue}
                   onChange={e => setDiscountValue(e.target.value)} />
               </div>
