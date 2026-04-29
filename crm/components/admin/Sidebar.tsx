@@ -26,7 +26,7 @@ export default function Sidebar({ isOpen, setIsOpen, userProfile, pendingCount =
   const navItems = [
     { name: 'Dashboard',    icon: Home,         href: '/dashboard',  roles: ['admin', 'master_admin', 'employee'] },
     { name: 'Team Members', icon: User,         href: '/employees',  roles: ['admin', 'master_admin'] },
-    { name: 'Investors',    icon: Coins,        href: '/investors',  roles: ['admin', 'master_admin'] },
+    // { name: 'Investors',    icon: Coins,        href: '/investors',  roles: ['admin', 'master_admin'] },
     { name: 'Consultants',  icon: UserCheck,    href: '/consultants',roles: ['admin', 'master_admin', 'employee'] },
     { name: 'Clients',      icon: Users,        href: '/clients',    roles: ['admin', 'master_admin', 'employee'] },
     { name: 'Projects',     icon: FolderKanban, href: '/projects',   roles: ['admin', 'master_admin', 'employee'] },
