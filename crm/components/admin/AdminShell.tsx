@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
 
-export default function AdminShell({ children, userProfile }: { children: React.ReactNode, userProfile: any }) {
+export default function AdminShell({ children, userProfile, pendingCount = 0 }: { 
+  children: React.ReactNode;
+  userProfile: any;
+  pendingCount?: number;
+}) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Initialize sidebar state based on screen width
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
@@ -23,7 +26,6 @@ export default function AdminShell({ children, userProfile }: { children: React.
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden font-sans">
-      {/* Overlay for mobile when sidebar is open */}
       {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
@@ -31,7 +33,12 @@ export default function AdminShell({ children, userProfile }: { children: React.
         />
       )}
 
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} userProfile={userProfile} />
+      <Sidebar
+        isOpen={isSidebarOpen}
+        setIsOpen={setIsSidebarOpen}
+        userProfile={userProfile}
+        pendingCount={pendingCount}
+      />
 
       <div className="flex-1 flex flex-col min-w-0">
         <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />

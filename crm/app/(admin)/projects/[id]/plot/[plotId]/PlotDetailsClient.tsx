@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, User, Plus, Ruler, Banknote, Trophy,
-  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer
+  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer, Clock
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
@@ -11,11 +11,13 @@ import {
   createBooking, addPayment, confirmBooking,
   cancelBooking, updateBookingDiscount
 } from '../../../../plots.actions';
+import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
+import { Toast, useToast } from '@/components/ui/Toast';
 
 export default function PlotDetailsClient({
-  initialPlot, clients, consultants, projectId, isAdmin
+  initialPlot, clients, consultants, projectId, isAdmin, role
 }: any) {
   const [plot, setPlot] = useState(initialPlot);
 
@@ -32,6 +34,9 @@ export default function PlotDetailsClient({
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+
+  const [isPending, startTransition] = React.useTransition();
+  const { toast, showToast, hideToast } = useToast();
 
   // Add Client form
   const [clientSearch, setClientSearch] = useState('');
@@ -62,57 +67,179 @@ export default function PlotDetailsClient({
   const reload = () => window.location.reload();
 
   // ---- ACTIONS ----
-  const handleAddClient = async (e: React.FormEvent) => {
+  const isEmployee = role === 'employee';
+
+  const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClientId) { alert('Please select a client'); return; }
-    const result = await createBooking({
-      plot_id: plot.id,
-      client_id: selectedClientId,
-      total_amount: parseFloat(addClientForm.total_amount) || plot.price || 0,
-      discount_amount: parseFloat(addClientForm.discount_amount) || 0,
-      consultant_id: addClientForm.consultant_id || undefined,
-      commission_percent: parseFloat(addClientForm.commission_percent) || 0,
+
+    startTransition(async () => {
+      const payload = {
+        plot_id: plot.id,
+        client_id: selectedClientId,
+        total_amount: parseFloat(addClientForm.total_amount) || plot.price || 0,
+        discount_amount: parseFloat(addClientForm.discount_amount) || 0,
+        consultant_id: addClientForm.consultant_id || undefined,
+        commission_percent: parseFloat(addClientForm.commission_percent) || 0,
+      };
+
+      if (isEmployee) {
+        const client = clients.find((c: any) => c.id === selectedClientId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          operation: 'create',
+          payload,
+          description: `New booking for plot ${plot.plot_number} by "${client?.name}"`,
+        });
+        if (result.success) {
+          showToast('Booking request submitted for review', 'warning');
+          setShowAddClientModal(false);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      } else {
+        const result = await createBooking(payload);
+        if (result.success) {
+          showToast('Booking created successfully', 'success');
+          setShowAddClientModal(false);
+          setTimeout(reload, 800);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      }
     });
-    if (!result.success) { alert(`Failed: ${result.error}`); return; }
-    reload();
   };
 
-  const handleConfirm = async (bookingId: string, clientId: string) => {
+  const handleConfirm = (bookingId: string, clientId: string) => {
     if (!confirm('Confirm this client as the plot owner? All other negotiations will be cancelled.')) return;
-    const result = await confirmBooking(bookingId, plot.id, clientId);
-    if (!result.success) { alert(`Failed: ${result.error}`); return; }
-    reload();
+
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === bookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          entity_id: bookingId,
+          operation: 'update',
+          payload: { status: 'confirmed' },
+          description: `Confirm booking for "${booking?.client?.name}" on plot ${plot.plot_number}`,
+        });
+        if (result.success) showToast('Confirmation request sent for approval', 'warning');
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await confirmBooking(bookingId, plot.id, clientId);
+        if (result.success) {
+          showToast('Owner confirmed', 'success');
+          setTimeout(reload, 800);
+        } else showToast(result.error || 'Failed', 'error');
+      }
+    });
   };
 
-  const handleCancel = async (bookingId: string) => {
+  const handleCancel = (bookingId: string) => {
     if (!confirm('Remove this negotiation? This cannot be undone.')) return;
-    const result = await cancelBooking(bookingId, plot.id);
-    if (!result.success) { alert(`Failed: ${result.error}`); return; }
-    reload();
+
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === bookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          entity_id: bookingId,
+          operation: 'delete',
+          payload: {},
+          description: `Remove booking negotiation for "${booking?.client?.name}" on plot ${plot.plot_number}`,
+        });
+        if (result.success) showToast('Cancellation request sent for approval', 'warning');
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await cancelBooking(bookingId, plot.id);
+        if (result.success) {
+          showToast('Negotiation removed', 'success');
+          setTimeout(reload, 800);
+        } else showToast(result.error || 'Failed', 'error');
+      }
+    });
   };
 
-  const handleAddPayment = async (e: React.FormEvent) => {
+  const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBookingId || !activeClientId) { alert('Missing booking info'); return; }
-    const result = await addPayment({
-      booking_id: activeBookingId,
-      amount: parseFloat(paymentForm.amount),
-      payment_date: paymentForm.date,
-      payment_mode: paymentForm.mode,
-      description: paymentForm.description,
-      transaction_id: paymentForm.transaction_id || undefined,
-      entity_id: activeClientId,
+
+    startTransition(async () => {
+      const payload = {
+        booking_id: activeBookingId,
+        amount: parseFloat(paymentForm.amount),
+        payment_date: paymentForm.date,
+        payment_mode: paymentForm.mode,
+        description: paymentForm.description,
+        transaction_id: paymentForm.transaction_id || undefined,
+        entity_id: activeClientId,
+      };
+
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === activeBookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'payment',
+          operation: 'create',
+          payload,
+          description: `New payment of ₹${formatNumber(payload.amount)} for plot ${plot.plot_number} (${booking?.client?.name})`,
+        });
+        if (result.success) {
+          showToast('Payment request submitted for review', 'warning');
+          setShowPaymentModal(false);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      } else {
+        const result = await addPayment(payload);
+        if (result.success) {
+          showToast('Payment recorded successfully', 'success');
+          setShowPaymentModal(false);
+          setTimeout(reload, 800);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      }
     });
-    if (!result.success) { alert(`Payment failed: ${result.error}`); return; }
-    reload();
   };
 
-  const handleUpdateDiscount = async (e: React.FormEvent) => {
+  const handleUpdateDiscount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeBookingId) return;
-    const result = await updateBookingDiscount(activeBookingId, parseFloat(discountValue) || 0);
-    if (!result.success) { alert(`Failed: ${result.error}`); return; }
-    reload();
+
+    startTransition(async () => {
+      const newDiscount = parseFloat(discountValue) || 0;
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === activeBookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          entity_id: activeBookingId,
+          operation: 'update',
+          payload: { discount_amount: newDiscount },
+          description: `Update discount to ₹${formatNumber(newDiscount)} for plot ${plot.plot_number} (${booking?.client?.name})`,
+        });
+        if (result.success) {
+          showToast('Discount change request submitted', 'warning');
+          setShowDiscountModal(false);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      } else {
+        const result = await updateBookingDiscount(activeBookingId, newDiscount);
+        if (result.success) {
+          showToast('Discount updated', 'success');
+          setShowDiscountModal(false);
+          setTimeout(reload, 800);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      }
+    });
+  };
+
+  const handleCloseModal = () => {
+    setShowAddClientModal(false);
+    setShowPaymentModal(false);
+    setShowDiscountModal(false);
   };
 
   const handlePrintWelcomeLetter = async (booking: any) => {
@@ -158,6 +285,7 @@ export default function PlotDetailsClient({
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       <div className="max-w-7xl mx-auto space-y-6">
 
         {/* HEADER */}
@@ -217,12 +345,12 @@ export default function PlotDetailsClient({
               <h2 className="text-xl font-bold text-gray-900">Bookings &amp; Negotiations</h2>
               <p className="text-sm text-gray-500 mt-0.5">Manage all client deals for this plot</p>
             </div>
-            {!confirmedBooking && (
+            {!confirmedBooking && (isAdmin || isEmployee) && (
               <button
                 onClick={() => setShowAddClientModal(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 transition-colors"
               >
-                <Plus className="w-4 h-4" /> Add Client
+                <Plus className="w-4 h-4" /> {isEmployee ? 'Request Booking' : 'Add Client'}
               </button>
             )}
           </div>
@@ -276,20 +404,20 @@ export default function PlotDetailsClient({
                              <Printer className="w-3.5 h-3.5" /> Welcome Letter
                            </button>
                         )}
-                        {isAdmin && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
+                        {(isAdmin || isEmployee) && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
                           <button
                             onClick={() => handleConfirm(booking.id, booking.client_id)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Confirm Owner
+                            <CheckCircle2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Confirmation' : 'Confirm Owner'}
                           </button>
                         )}
-                        {isAdmin && booking.status === 'pending' && (
+                        {(isAdmin || isEmployee) && booking.status === 'pending' && (
                           <button
                             onClick={() => handleCancel(booking.id)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
                           >
-                            <XCircle className="w-3.5 h-3.5" /> Remove
+                            <XCircle className="w-3.5 h-3.5" /> {isEmployee ? 'Request Removal' : 'Remove'}
                           </button>
                         )}
                       </div>
@@ -329,12 +457,12 @@ export default function PlotDetailsClient({
                           </div>
                         </div>
                         {/* Discount button */}
-                        {booking.status !== 'cancelled' && (
+                        {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                           <button
-                            onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setShowDiscountModal(true); }}
+                            onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setSaveStatus('idle'); setShowDiscountModal(true); }}
                             className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-1"
                           >
-                            <Percent className="w-3 h-3" /> Update Discount
+                            <Percent className="w-3 h-3" /> {isEmployee ? 'Request Discount Change' : 'Update Discount'}
                           </button>
                         )}
                       </div>
@@ -343,12 +471,12 @@ export default function PlotDetailsClient({
                       <div>
                         <div className="flex justify-between items-center mb-2">
                           <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment History</h4>
-                          {booking.status !== 'cancelled' && (
+                          {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                             <button
-                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setShowPaymentModal(true); }}
+                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setSaveStatus('idle'); setShowPaymentModal(true); }}
                               className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
                             >
-                              <HandCoins className="w-3 h-3" /> Add Payment
+                              <HandCoins className="w-3 h-3" /> {isEmployee ? 'Request Payment' : 'Add Payment'}
                             </button>
                           )}
                         </div>
@@ -392,8 +520,8 @@ export default function PlotDetailsClient({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Add Negotiating Client</h2>
-              <button onClick={() => setShowAddClientModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request New Booking' : 'Add Negotiating Client'}</h2>
+              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleAddClient} className="flex flex-col gap-4 overflow-y-auto">
               {/* Client Search */}
@@ -464,11 +592,11 @@ export default function PlotDetailsClient({
                 </div>
               )}
               <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowAddClientModal(false)}
+                <button type="button" onClick={handleCloseModal}
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={!selectedClientId}
+                <button type="submit" disabled={!selectedClientId || isPending}
                   className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                  Add to Negotiations
+                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Add to Negotiations')}
                 </button>
               </div>
             </form>
@@ -481,13 +609,14 @@ export default function PlotDetailsClient({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Add Payment</h2>
-              <button onClick={() => setShowPaymentModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Payment' : 'Add Payment'}</h2>
+              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleAddPayment} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
+                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
+                  disabled={saveStatus === 'pending_review'}
                   value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
               </div>
               <div>
@@ -511,9 +640,11 @@ export default function PlotDetailsClient({
                   value={paymentForm.description} onChange={e => setPaymentForm({ ...paymentForm, description: e.target.value })} />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowPaymentModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold">Save Payment</button>
+                <button type="button" onClick={handleCloseModal}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
+                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Save Payment')}
+                </button>
               </div>
             </form>
           </div>
@@ -525,20 +656,23 @@ export default function PlotDetailsClient({
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Update Discount</h2>
-              <button onClick={() => setShowDiscountModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Discount Change' : 'Update Discount'}</h2>
+              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleUpdateDiscount} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Discount Amount (₹)</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
+                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
+                  disabled={saveStatus === 'pending_review'}
                   placeholder="0" value={discountValue}
                   onChange={e => setDiscountValue(e.target.value)} />
               </div>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowDiscountModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold">Apply</button>
+                <button type="button" onClick={handleCloseModal}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
+                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Apply')}
+                </button>
               </div>
             </form>
           </div>

@@ -8,11 +8,17 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).single();
-  const isAdmin = profile?.role === 'admin';
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single();
+
+  const role = profile?.role ?? 'employee';
+  const isAdmin = role === 'admin' || role === 'master_admin';
 
   const client = await getClientById(id);
   if (!client) notFound();
 
-  return <ClientDetailClient client={client} isAdmin={isAdmin} />;
+  return <ClientDetailClient client={client} isAdmin={isAdmin} role={role} />;
 }

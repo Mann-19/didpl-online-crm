@@ -17,7 +17,8 @@ export default async function PlotDetailsPage({ params }: { params: Promise<{ id
     .eq('id', user?.id)
     .single();
 
-  const isAdmin = profile?.role === 'admin';
+  const role = profile?.role ?? 'employee';
+  const isAdmin = role === 'admin' || role === 'master_admin';
 
   const [plot, clients, consultants] = await Promise.all([
     getPlotDetails(plotId, projectId),
@@ -36,6 +37,7 @@ export default async function PlotDetailsPage({ params }: { params: Promise<{ id
       consultants={consultants}
       projectId={projectId}
       isAdmin={isAdmin}
+      role={role}
     />
   );
 }

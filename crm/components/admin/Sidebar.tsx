@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home, Users, FolderKanban, UserCheck,
   User, Coins, BarChart3, LogOut,
-  ChevronLeft, ReceiptText
+  ChevronLeft, ReceiptText, Bell
 } from 'lucide-react';
 
 import { createClient } from '@/utils/supabase/client';
@@ -16,20 +16,21 @@ interface SidebarProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   userProfile: any;
+  pendingCount?: number;
 }
 
-export default function Sidebar({ isOpen, setIsOpen, userProfile }: SidebarProps) {
+export default function Sidebar({ isOpen, setIsOpen, userProfile, pendingCount = 0 }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
   const navItems = [
-    { name: 'Dashboard', icon: Home, href: '/dashboard', roles: ['admin', 'employee'] },
-    { name: 'Team Members', icon: User, href: '/employees', roles: ['admin'] },
-    { name: 'Investors', icon: Coins, href: '/investors', roles: ['admin'] },
-    { name: 'Consultants', icon: UserCheck, href: '/consultants', roles: ['admin', 'employee'] },
-    { name: 'Clients', icon: Users, href: '/clients', roles: ['admin', 'employee'] },
-    { name: 'Projects', icon: FolderKanban, href: '/projects', roles: ['admin', 'employee'] },
-    { name: 'Reports', icon: BarChart3, href: '/reports', roles: ['admin', 'employee'] },
+    { name: 'Dashboard',    icon: Home,         href: '/dashboard',  roles: ['admin', 'master_admin', 'employee'] },
+    { name: 'Team Members', icon: User,         href: '/employees',  roles: ['admin', 'master_admin'] },
+    { name: 'Investors',    icon: Coins,        href: '/investors',  roles: ['admin', 'master_admin'] },
+    { name: 'Consultants',  icon: UserCheck,    href: '/consultants',roles: ['admin', 'master_admin', 'employee'] },
+    { name: 'Clients',      icon: Users,        href: '/clients',    roles: ['admin', 'master_admin', 'employee'] },
+    { name: 'Projects',     icon: FolderKanban, href: '/projects',   roles: ['admin', 'master_admin', 'employee'] },
+    { name: 'Reports',      icon: BarChart3,    href: '/reports',    roles: ['admin', 'master_admin', 'employee'] },
   ];
 
   const isActive = (href: string) => {
@@ -42,6 +43,9 @@ export default function Sidebar({ isOpen, setIsOpen, userProfile }: SidebarProps
     await supabase.auth.signOut();
     router.push('/login');
   };
+
+  const isAdminOrMaster = userProfile?.role === 'admin' || userProfile?.role === 'master_admin';
+  const approvalActive = pathname.startsWith('/approvals');
 
   return (
     <aside
@@ -90,6 +94,37 @@ export default function Sidebar({ isOpen, setIsOpen, userProfile }: SidebarProps
               </Link>
             );
           })}
+
+        {/* Approvals — admin/master_admin only */}
+        {isAdminOrMaster && (
+          <Link
+            href="/approvals"
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${approvalActive
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            title={!isOpen ? 'Approvals' : ''}
+          >
+            {/* Bell with optional dot when collapsed */}
+            <div className="relative shrink-0">
+              <Bell size={20} />
+              {!isOpen && pendingCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500" />
+              )}
+            </div>
+
+            {isOpen && (
+              <>
+                <span className="text-sm font-medium whitespace-nowrap">Approvals</span>
+                {pendingCount > 0 && (
+                  <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
+              </>
+            )}
+          </Link>
+        )}
       </nav>
 
       {/* User Profile Section */}

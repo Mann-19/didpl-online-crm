@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Phone, Mail, MapPin, Building2, CreditCard,
   Wallet, TrendingUp, Users, Briefcase, CheckCircle2,
-  Receipt, Edit2, X, Save
+  Receipt, Edit2, X, Save, Clock
 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
 import { updateConsultant, addConsultantPayout } from '../../people.actions';
+import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
+import { Toast, useToast } from '@/components/ui/Toast';
 
 const InfoRow = ({ label, value }: any) => (
   <div className="grid grid-cols-3 gap-4 items-start py-2.5 border-b border-gray-50 last:border-0">
@@ -23,9 +25,11 @@ const statusBadge = (status: string) => {
   return 'bg-amber-100 text-amber-700';
 };
 
-export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
+export default function ConsultantDetailClient({ consultant, isAdmin, role }: any) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const { toast, showToast, hideToast } = useToast();
   const [saving, setSaving] = useState(false);
 
   const [editForm, setEditForm] = useState({
@@ -62,14 +66,44 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
     ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
     : '—';
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
+  const isEmployee = role === 'employee';
+
+  const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    const result = await updateConsultant(consultant.id, editForm);
-    setSaving(false);
-    if (!result.success) { alert(`Failed: ${result.error}`); return; }
+
+    startTransition(async () => {
+      if (isEmployee) {
+        // Stage for review — do NOT write to DB
+        const result = await submitChangeRequest({
+          entity_type: 'consultant',
+          entity_id: consultant.id,
+          operation: 'update',
+          payload: editForm,
+          description: `Update consultant "${consultant.name}" (${consultant.consultant_code}) — fields: ${Object.keys(editForm).join(', ')}`,
+        });
+
+        if (result.success) {
+          showToast('Edit request submitted for admin review', 'warning');
+          setShowEditModal(false);
+        } else {
+          showToast(result.error || 'Submission failed', 'error');
+        }
+      } else {
+        // Admin: write directly
+        const result = await updateConsultant(consultant.id, editForm);
+        if (result.success) {
+          showToast('Consultant updated successfully', 'success');
+          setShowEditModal(false);
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          showToast(result.error || 'Failed to update', 'error');
+        }
+      }
+    });
+  };
+
+  const handleCloseModal = () => {
     setShowEditModal(false);
-    window.location.reload();
   };
 
   const handlePayout = async (e: React.FormEvent) => {
@@ -85,12 +119,14 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
     });
     setSaving(false);
     if (!result.success) { alert(`Failed: ${result.error}`); return; }
+    showToast('Payout recorded successfully', 'success');
     setShowPayoutModal(false);
-    window.location.reload();
+    setTimeout(() => window.location.reload(), 800);
   };
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* HEADER */}
@@ -122,14 +158,15 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
                   <Wallet className="w-4 h-4" /> Record Payout
                 </button>
               )}
-              {isAdmin && (
+              {isAdmin || isEmployee ? (
                 <button
                   onClick={() => setShowEditModal(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm"
                 >
-                  <Edit2 className="w-4 h-4" /> Edit Profile
+                  <Edit2 className="w-4 h-4" />
+                  {isEmployee ? 'Request Edit' : 'Edit Profile'}
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
@@ -260,8 +297,17 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-900">Edit Consultant Profile</h3>
-              <button onClick={() => setShowEditModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {isEmployee ? 'Request Profile Edit' : 'Edit Consultant Profile'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {isEmployee
+                    ? `Changes will be sent to the admin for approval`
+                    : `Update ${consultant.name}'s information`}
+                </p>
+              </div>
+              <button onClick={handleCloseModal} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-6 space-y-5">
               <div>
@@ -274,14 +320,14 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
                   ].map(f => (
                     <div key={f.name} className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-gray-700">{f.label}</label>
-                      <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                      <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-amber-500"
                         value={(editForm as any)[f.name]}
                         onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })} />
                     </div>
                   ))}
                   <div className="flex flex-col gap-1 md:col-span-2">
                     <label className="text-sm font-medium text-gray-700">Address</label>
-                    <textarea className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 resize-none" rows={2}
+                    <textarea className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 resize-none focus:ring-2 focus:ring-amber-500" rows={2}
                       value={editForm.address}
                       onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
                   </div>
@@ -299,7 +345,7 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
                   ].map(f => (
                     <div key={f.name} className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-gray-700">{f.label}</label>
-                      <input className={`p-2 border border-gray-300 rounded-lg text-sm text-gray-900 ${f.mono ? 'font-mono' : ''} ${f.upper ? 'uppercase' : ''}`}
+                      <input className={`p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-amber-500 ${f.mono ? 'font-mono' : ''} ${f.upper ? 'uppercase' : ''}`}
                         value={(editForm as any)[f.name]}
                         onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })} />
                     </div>
@@ -308,9 +354,14 @@ export default function ConsultantDetailClient({ consultant, isAdmin }: any) {
               </div>
             </form>
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSaveEdit} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
-                <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+              <button type="button" onClick={handleCloseModal} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={handleSaveEdit} disabled={isPending} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                {isEmployee
+                  ? <><Clock className="w-4 h-4" /> {isPending ? 'Submitting...' : 'Submit for Review'}</>
+                  : <><Save className="w-4 h-4" /> {isPending ? 'Saving...' : 'Save Changes'}</>
+                }
               </button>
             </div>
           </div>

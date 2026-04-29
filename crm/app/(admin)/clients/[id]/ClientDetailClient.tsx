@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase,
-  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar
+  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar, Clock
 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
 import { updateClient } from '../../people.actions';
+import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
+import { Toast, useToast } from '@/components/ui/Toast';
 
 const InfoRow = ({ icon: Icon, label, value }: any) => (
   <div className="grid grid-cols-3 gap-4 items-start py-2.5 border-b border-gray-50 last:border-0">
@@ -25,9 +27,11 @@ const statusBadge = (status: string) => {
   return 'bg-amber-100 text-amber-700';
 };
 
-export default function ClientDetailClient({ client, isAdmin }: any) {
+export default function ClientDetailClient({ client, isAdmin, role }: any) {
   const [showEditModal, setShowEditModal] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const { toast, showToast, hideToast } = useToast();
+
   const [editForm, setEditForm] = useState({
     name: client.name || '',
     phone: client.phone || '',
@@ -47,14 +51,44 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
     office_pincode: client.office_pincode || '',
   });
 
-  const handleSave = async (e: React.FormEvent) => {
+  const isEmployee = role === 'employee';
+
+  const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    const result = await updateClient(client.id, editForm);
-    setSaving(false);
-    if (!result.success) { alert(`Failed to update: ${result.error}`); return; }
+
+    startTransition(async () => {
+      if (isEmployee) {
+        // Stage for review — do NOT write to DB
+        const result = await submitChangeRequest({
+          entity_type: 'client',
+          entity_id: client.id,
+          operation: 'update',
+          payload: editForm,
+          description: `Update client "${client.name}" (${client.client_code}) — fields: ${Object.keys(editForm).join(', ')}`,
+        });
+
+        if (result.success) {
+          showToast('Edit request submitted for admin review', 'warning');
+          setShowEditModal(false);
+        } else {
+          showToast(result.error || 'Submission failed', 'error');
+        }
+      } else {
+        // Admin: write directly
+        const result = await updateClient(client.id, editForm);
+        if (result.success) {
+          showToast('Client updated successfully', 'success');
+          setShowEditModal(false);
+          setTimeout(() => window.location.reload(), 800);
+        } else {
+          showToast(result.error || 'Failed to update', 'error');
+        }
+      }
+    });
+  };
+
+  const handleCloseModal = () => {
     setShowEditModal(false);
-    window.location.reload();
   };
 
   const bookings: any[] = client.bookings || [];
@@ -69,6 +103,7 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
+      {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
       <div className="max-w-6xl mx-auto space-y-6">
 
         {/* HEADER */}
@@ -86,14 +121,14 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
               </div>
               <p className="text-gray-400 text-sm mt-1">Joined {formatDate(client.created_at)}</p>
             </div>
-            {isAdmin && (
-              <button
-                onClick={() => setShowEditModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm"
-              >
-                <Edit2 className="w-4 h-4" /> Edit Profile
-              </button>
-            )}
+            {/* Show Edit button for both admin and employee */}
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 shadow-sm"
+            >
+              <Edit2 className="w-4 h-4" />
+              {isEmployee ? 'Request Edit' : 'Edit Profile'}
+            </button>
           </div>
         </div>
 
@@ -114,7 +149,6 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
 
         {/* INFO GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Personal Details */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
               <div className="p-1.5 rounded-md bg-blue-50 text-blue-600"><User className="w-4 h-4" /></div>
@@ -131,7 +165,6 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
             </div>
           </div>
 
-          {/* Address */}
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-gray-100">
               <div className="p-1.5 rounded-md bg-emerald-50 text-emerald-600"><MapPin className="w-4 h-4" /></div>
@@ -276,10 +309,16 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
             <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
               <div>
-                <h3 className="text-lg font-bold text-gray-900">Edit Client Profile</h3>
-                <p className="text-sm text-gray-500">Update {client.name}'s information</p>
+                <h3 className="text-lg font-bold text-gray-900">
+                  {isEmployee ? 'Request Profile Edit' : 'Edit Client Profile'}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  {isEmployee
+                    ? `Changes will be sent to the admin for approval`
+                    : `Update ${client.name}'s information`}
+                </p>
               </div>
-              <button onClick={() => setShowEditModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
+              <button onClick={handleCloseModal} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -298,15 +337,21 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
                   ].map(f => (
                     <div key={f.name} className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-gray-700">{f.label}</label>
-                      <input type={f.type} className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
+                      <input
+                        type={f.type}
+                        className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-blue-500"
                         value={(editForm as any)[f.name]}
-                        onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })} />
+                        onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })}
+                      />
                     </div>
                   ))}
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">Gender</label>
-                    <select className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                      value={editForm.gender} onChange={e => setEditForm({ ...editForm, gender: e.target.value })}>
+                    <select
+                      className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                      value={editForm.gender}
+                      onChange={e => setEditForm({ ...editForm, gender: e.target.value })}
+                    >
                       <option value="">Select</option>
                       <option value="Male">Male</option>
                       <option value="Female">Female</option>
@@ -325,9 +370,11 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
                   ].map(f => (
                     <div key={f.name} className="flex flex-col gap-1">
                       <label className="text-sm font-medium text-gray-700">{f.label}</label>
-                      <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 font-mono uppercase"
+                      <input
+                        className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 font-mono uppercase"
                         value={(editForm as any)[f.name]}
-                        onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })} />
+                        onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })}
+                      />
                     </div>
                   ))}
                 </div>
@@ -339,9 +386,11 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
                 <div className="space-y-3">
                   <div className="flex flex-col gap-1">
                     <label className="text-sm font-medium text-gray-700">Street Address</label>
-                    <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    <input
+                      className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
                       value={editForm.residential_address}
-                      onChange={e => setEditForm({ ...editForm, residential_address: e.target.value })} />
+                      onChange={e => setEditForm({ ...editForm, residential_address: e.target.value })}
+                    />
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     {[
@@ -351,9 +400,11 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
                     ].map(f => (
                       <div key={f.name} className="flex flex-col gap-1">
                         <label className="text-sm font-medium text-gray-700">{f.label}</label>
-                        <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                        <input
+                          className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
                           value={(editForm as any)[f.name]}
-                          onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })} />
+                          onChange={e => setEditForm({ ...editForm, [f.name]: e.target.value })}
+                        />
                       </div>
                     ))}
                   </div>
@@ -362,13 +413,22 @@ export default function ClientDetailClient({ client, isAdmin }: any) {
             </form>
 
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
-              <button type="button" onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+              <button
+                type="button"
+                onClick={handleCloseModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
                 Cancel
               </button>
-              <button onClick={handleSave} disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-                <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+              <button
+                onClick={handleSave}
+                disabled={isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {isEmployee
+                  ? <><Clock className="w-4 h-4" /> {isPending ? 'Submitting...' : 'Submit for Review'}</>
+                  : <><Save className="w-4 h-4" /> {isPending ? 'Saving...' : 'Save Changes'}</>
+                }
               </button>
             </div>
           </div>

@@ -8,11 +8,17 @@ export default async function ConsultantDetailPage({ params }: { params: Promise
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id).single();
-  const isAdmin = profile?.role === 'admin';
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id)
+    .single();
+
+  const role = profile?.role ?? 'employee';
+  const isAdmin = role === 'admin' || role === 'master_admin';
 
   const consultant = await getConsultantById(id);
   if (!consultant) notFound();
 
-  return <ConsultantDetailClient consultant={consultant} isAdmin={isAdmin} />;
+  return <ConsultantDetailClient consultant={consultant} isAdmin={isAdmin} role={role} />;
 }
