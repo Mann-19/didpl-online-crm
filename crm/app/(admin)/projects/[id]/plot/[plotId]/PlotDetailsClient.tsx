@@ -9,7 +9,7 @@ import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
 import {
   createBooking, addPayment, confirmBooking,
-  cancelBooking, updateBookingDiscount
+  cancelBooking, updateBookingDiscount, revertBooking
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -154,6 +154,31 @@ export default function PlotDetailsClient({
         const result = await cancelBooking(bookingId, plot.id);
         if (result.success) {
           showToast('Negotiation removed', 'success');
+          setTimeout(reload, 800);
+        } else showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const handleRevert = (bookingId: string) => {
+    if (!confirm('Revert this booking back to pending? This will remove the client as the confirmed owner.')) return;
+
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === bookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          entity_id: bookingId,
+          operation: 'update',
+          payload: { status: 'pending' },
+          description: `Revert booking to pending for "${booking?.client?.name}" on plot ${plot.plot_number}`,
+        });
+        if (result.success) showToast('Revert request sent for approval', 'warning');
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await revertBooking(bookingId, plot.id);
+        if (result.success) {
+          showToast('Booking reverted to pending', 'success');
           setTimeout(reload, 800);
         } else showToast(result.error || 'Failed', 'error');
       }
@@ -393,7 +418,7 @@ export default function PlotDetailsClient({
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${statusBadge(booking.status)}`}>
-                          {booking.status}
+                          Booking Status: {booking.status}
                         </span>
                         {/* Admin Actions */}
                         {isAdmin && isConfirmed && (
@@ -403,6 +428,14 @@ export default function PlotDetailsClient({
                            >
                              <Printer className="w-3.5 h-3.5" /> Welcome Letter
                            </button>
+                        )}
+                        {(isAdmin || isEmployee) && isConfirmed && (
+                          <button
+                            onClick={() => handleRevert(booking.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors"
+                          >
+                            <Clock className="w-3.5 h-3.5" /> {isEmployee ? 'Request Revert' : 'Revert to Pending'}
+                          </button>
                         )}
                         {(isAdmin || isEmployee) && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
                           <button
@@ -457,14 +490,14 @@ export default function PlotDetailsClient({
                           </div>
                         </div>
                         {/* Discount button */}
-                        {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
+                        {/* {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                           <button
                             onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setShowDiscountModal(true); }}
                             className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-1"
                           >
                             <Percent className="w-3 h-3" /> {isEmployee ? 'Request Discount Change' : 'Update Discount'}
                           </button>
-                        )}
+                        )} */}
                       </div>
 
                       {/* Payment history */}

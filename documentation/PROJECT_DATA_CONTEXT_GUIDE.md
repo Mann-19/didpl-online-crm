@@ -11,9 +11,9 @@ This document is a complete, self-contained reference for adding new real estate
 
 | Project ID | Project Code | Name | Plots | Location | Plot Price/SqYd |
 |---|---|---|---|---|---|
-| `proj_aero_town_city_001` | `ATC-001` | AeroTown Residency | 127 | Aero Town City, Phase 1 | ₹14,999 |
-| `proj_dholera_homes_3_001` | `DH3-001` | Dholera Homes 3 | 319 | Dholera | ₹7,499 |
-| `proj_com_warehouse_001` | `CW-001` | Commercial Warehouse | 25 | Industrial Area | ₹7,499 |
+| `proj_aero_town_city_001` | `ATC-001` | AeroTown Residency | 127 | Aero Town City, Phase 1 | ₹5,500 |
+| `proj_dholera_homes_3_001` | `DH3-001` | Dholera Homes 3 | 319 | Dholera | ₹3,000 |
+| `proj_com_warehouse_001` | `AELP-001` | AeroTown Logistic Park | 26 | Industrial Area | ₹4,500 |
 
 ### Layout Renderers Available
 

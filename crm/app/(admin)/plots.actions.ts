@@ -261,4 +261,33 @@ export async function updateBookingDiscount(
   return { success: true }
 }
 
+// Revert a confirmed booking back to pending
+export async function revertBooking(
+  bookingId: string,
+  plotId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
 
+  // 1. Set the booking back to pending
+  const { error: revertError } = await supabase
+    .from('bookings')
+    .update({ status: 'pending' })
+    .eq('id', bookingId)
+
+  if (revertError) {
+    return { success: false, error: revertError.message }
+  }
+
+  // 2. Update plot to token_paid, remove linked client
+  const { error: plotError } = await supabase
+    .from('plots')
+    .update({ status: 'token_paid', client_id: null })
+    .eq('id', plotId)
+
+  if (plotError) {
+    return { success: false, error: plotError.message }
+  }
+
+  revalidatePath('/projects')
+  return { success: true }
+}
