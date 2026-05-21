@@ -72,7 +72,7 @@ export default async function ProjectClientsPage({ params }: { params: Promise<{
                   
                   <div className="mt-6 pt-4 border-t border-gray-100">
                     <Link
-                      href={`/clients`}
+                      href={`/clients/${client.id}`}
                       className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
                     >
                       View Full Profile &rarr;
