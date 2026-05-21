@@ -223,3 +223,104 @@ export async function addEmployee(formData: any): Promise<{ success: boolean; er
   revalidatePath('/employees/list')
   return { success: true }
 }
+
+// -- MASTER ADMIN ONLY --------------------------------------------------------
+
+// Hard delete a client and all related data (bookings, payments cascade via DB or manual)
+export async function deleteClient(
+  clientId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  // Fetch all bookings for this client to get payment ids
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('id, plot_id')
+    .eq('client_id', clientId)
+
+  if (bookings && bookings.length > 0) {
+    const bookingIds = bookings.map((b: any) => b.id)
+
+    // Delete all payments for those bookings
+    await supabase.from('payments').delete().in('booking_id', bookingIds)
+
+    // Reset the plots that were associated
+    for (const booking of bookings) {
+      await supabase
+        .from('plots')
+        .update({ status: 'available', client_id: null })
+        .eq('id', booking.plot_id)
+        .eq('client_id', clientId)
+    }
+
+    // Delete bookings
+    await supabase.from('bookings').delete().eq('client_id', clientId)
+  }
+
+  // Delete any client-level payments (entity_type = 'client')
+  await supabase.from('payments').delete().eq('entity_id', clientId).eq('entity_type', 'client')
+
+  // Delete the client
+  const { error } = await supabase.from('clients').delete().eq('id', clientId)
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/clients/list')
+  return { success: true }
+}
+
+// Edit an individual client payment record
+export async function updateClientPayment(
+  paymentId: string,
+  fields: Partial<{
+    amount: number
+    payment_date: string
+    payment_mode: string
+    description: string
+    transaction_id: string
+  }>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').update(fields).eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/clients')
+  return { success: true }
+}
+
+// Delete an individual client payment record
+export async function deleteClientPayment(
+  paymentId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').delete().eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/clients')
+  return { success: true }
+}
+
+// Edit an individual consultant payout record
+export async function updateConsultantPayout(
+  payoutId: string,
+  fields: Partial<{
+    amount: number
+    payment_date: string
+    payment_mode: string
+    description: string
+  }>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').update(fields).eq('id', payoutId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/consultants')
+  return { success: true }
+}
+
+// Delete an individual consultant payout record
+export async function deleteConsultantPayout(
+  payoutId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').delete().eq('id', payoutId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/consultants')
+  return { success: true }
+}

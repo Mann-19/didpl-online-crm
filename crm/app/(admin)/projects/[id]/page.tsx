@@ -8,6 +8,8 @@ import ProjectNav from '@/components/projects/ProjectNav';
 import BackLink from '@/components/ui/BackLink';
 import { formatNumber } from '@/utils/formatNumber';
 import { notFound } from 'next/navigation';
+import { createClient } from '@/utils/supabase/server';
+import ProjectEditButton from './ProjectEditButton';
 
 export default async function ProjectOverviewPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = await params;
@@ -17,6 +19,12 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
   if (!overview) {
     notFound();
   }
+
+  // Fetch current user role for master_admin gating
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user?.id ?? '').single();
+  const isMasterAdmin = profile?.role === 'master_admin';
 
   const { project, statusCounts } = overview;
   const formatCurrency = (amount: number) => `₹${formatNumber(amount)}`;
@@ -45,6 +53,15 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
                 <span className="w-full sm:w-auto mt-1 sm:mt-0">{project.totalAreaSqYd > 0 ? `${formatNumber(project.totalAreaSqYd)} sq.yd` : 'N/A'}</span>
               </div>
             </div>
+            {isMasterAdmin && (
+              <ProjectEditButton project={{
+                id: project.id,
+                name: project.name,
+                location: project.location,
+                description: project.description,
+                total_area_sqyd: project.totalAreaSqYd,
+              }} />
+            )}
           </div>
         </div>
 

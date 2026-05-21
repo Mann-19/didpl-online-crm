@@ -291,3 +291,68 @@ export async function revertBooking(
   revalidatePath('/projects')
   return { success: true }
 }
+
+// -- MASTER ADMIN ONLY --------------------------------------------------------
+
+// Edit core plot fields (plot_number, area_sqyd, price, status)
+export async function updatePlot(
+  plotId: string,
+  fields: Partial<{
+    plot_number: string
+    area_sqyd: number
+    price: number
+    status: string
+  }>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('plots').update(fields).eq('id', plotId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+// Edit a booking financial / status fields
+export async function updateBooking(
+  bookingId: string,
+  fields: Partial<{
+    total_amount: number
+    discount_amount: number
+    commission_percent: number
+    status: string
+  }>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('bookings').update(fields).eq('id', bookingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+// Edit an individual payment record
+export async function updatePayment(
+  paymentId: string,
+  fields: Partial<{
+    amount: number
+    payment_date: string
+    payment_mode: string
+    description: string
+    transaction_id: string
+  }>
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').update(fields).eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+// Delete an individual payment record
+export async function deletePayment(
+  paymentId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('payments').delete().eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}

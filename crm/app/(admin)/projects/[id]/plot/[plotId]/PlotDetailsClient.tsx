@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, User, Plus, Ruler, Banknote, Trophy,
-  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer, Clock
+  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer, Clock,
+  Edit2, Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
 import {
   createBooking, addPayment, confirmBooking,
-  cancelBooking, updateBookingDiscount, revertBooking
+  cancelBooking, updateBookingDiscount, revertBooking,
+  updatePlot, updateBooking, updatePayment, deletePayment
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -56,6 +58,33 @@ export default function PlotDetailsClient({
   // Discount form
   const [discountValue, setDiscountValue] = useState('');
 
+  // Master admin modals
+  const [showEditPlotModal, setShowEditPlotModal] = useState(false);
+  const [showEditBookingModal, setShowEditBookingModal] = useState(false);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
+
+  // Edit forms
+  const [editPlotForm, setEditPlotForm] = useState({
+    plot_number: String(plot.plot_number || ''),
+    area_sqyd: String(plot.area_sqyd || ''),
+    price: String(plot.price || ''),
+    status: plot.status || 'available',
+  });
+  const [editBookingForm, setEditBookingForm] = useState({
+    total_amount: '',
+    discount_amount: '',
+    commission_percent: '',
+    status: 'pending',
+  });
+  const [editPaymentForm, setEditPaymentForm] = useState({
+    amount: '',
+    payment_date: '',
+    payment_mode: 'Cash',
+    description: '',
+    transaction_id: '',
+  });
+
   // SSR-safe today date
   useEffect(() => {
     setPaymentForm(prev => ({
@@ -68,6 +97,7 @@ export default function PlotDetailsClient({
 
   // ---- ACTIONS ----
   const isEmployee = role === 'employee';
+  const isMasterAdmin = role === 'master_admin';
 
   const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,6 +212,71 @@ export default function PlotDetailsClient({
           setTimeout(reload, 800);
         } else showToast(result.error || 'Failed', 'error');
       }
+    });
+  };
+
+  const handleEditPlot = (e: React.FormEvent) => {
+    e.preventDefault();
+    startTransition(async () => {
+      const result = await updatePlot(plot.id, {
+        plot_number: editPlotForm.plot_number,
+        area_sqyd: parseFloat(editPlotForm.area_sqyd) || 0,
+        price: parseFloat(editPlotForm.price) || 0,
+        status: editPlotForm.status,
+      });
+      if (result.success) {
+        showToast('Plot updated', 'success');
+        setShowEditPlotModal(false);
+        setTimeout(reload, 800);
+      } else showToast(result.error || 'Failed', 'error');
+    });
+  };
+
+  const handleEditBooking = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBookingId) return;
+    startTransition(async () => {
+      const result = await updateBooking(activeBookingId, {
+        total_amount: parseFloat(editBookingForm.total_amount) || 0,
+        discount_amount: parseFloat(editBookingForm.discount_amount) || 0,
+        commission_percent: parseFloat(editBookingForm.commission_percent) || 0,
+        status: editBookingForm.status,
+      });
+      if (result.success) {
+        showToast('Booking updated', 'success');
+        setShowEditBookingModal(false);
+        setTimeout(reload, 800);
+      } else showToast(result.error || 'Failed', 'error');
+    });
+  };
+
+  const handleEditPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePaymentId) return;
+    startTransition(async () => {
+      const result = await updatePayment(activePaymentId, {
+        amount: parseFloat(editPaymentForm.amount) || 0,
+        payment_date: editPaymentForm.payment_date,
+        payment_mode: editPaymentForm.payment_mode,
+        description: editPaymentForm.description,
+        transaction_id: editPaymentForm.transaction_id || undefined,
+      });
+      if (result.success) {
+        showToast('Payment updated', 'success');
+        setShowEditPaymentModal(false);
+        setTimeout(reload, 800);
+      } else showToast(result.error || 'Failed', 'error');
+    });
+  };
+
+  const handleDeletePayment = (paymentId: string) => {
+    if (!confirm('Delete this payment record? This cannot be undone.')) return;
+    startTransition(async () => {
+      const result = await deletePayment(paymentId);
+      if (result.success) {
+        showToast('Payment deleted', 'success');
+        setTimeout(reload, 800);
+      } else showToast(result.error || 'Failed', 'error');
     });
   };
 
@@ -324,6 +419,14 @@ export default function PlotDetailsClient({
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>
               {plot.status?.replace('_', ' ')}
             </span>
+            {isMasterAdmin && (
+              <button
+                onClick={() => setShowEditPlotModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition-colors"
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Edit Plot
+              </button>
+            )}
           </div>
           <p className="text-gray-500 mt-1 font-medium">{plot.project?.name}</p>
         </div>
@@ -429,6 +532,23 @@ export default function PlotDetailsClient({
                              <Printer className="w-3.5 h-3.5" /> Welcome Letter
                            </button>
                         )}
+                        {isMasterAdmin && (
+                          <button
+                            onClick={() => {
+                              setActiveBookingId(booking.id);
+                              setEditBookingForm({
+                                total_amount: String(booking.total_amount || ''),
+                                discount_amount: String(booking.discount_amount || ''),
+                                commission_percent: String(booking.commission_percent || ''),
+                                status: booking.status,
+                              });
+                              setShowEditBookingModal(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit Booking
+                          </button>
+                        )}
                         {(isAdmin || isEmployee) && isConfirmed && (
                           <button
                             onClick={() => handleRevert(booking.id)}
@@ -520,6 +640,7 @@ export default function PlotDetailsClient({
                                 <th className="px-3 py-2 text-left text-gray-600 font-semibold">Date</th>
                                 <th className="px-3 py-2 text-left text-gray-600 font-semibold">Mode</th>
                                 <th className="px-3 py-2 text-right text-gray-600 font-semibold">Amount</th>
+                                {isMasterAdmin && <th className="px-3 py-2"></th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -530,10 +651,40 @@ export default function PlotDetailsClient({
                                   </td>
                                   <td className="px-3 py-2 text-gray-700">{p.payment_mode}</td>
                                   <td className="px-3 py-2 text-right font-bold text-gray-900">₹{formatNumber(p.amount)}</td>
+                                  {isMasterAdmin && (
+                                    <td className="px-3 py-2">
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={() => {
+                                            setActivePaymentId(p.id);
+                                            setEditPaymentForm({
+                                              amount: String(p.amount || ''),
+                                              payment_date: p.payment_date || '',
+                                              payment_mode: p.payment_mode || 'Cash',
+                                              description: p.description || '',
+                                              transaction_id: p.transaction_id || '',
+                                            });
+                                            setShowEditPaymentModal(true);
+                                          }}
+                                          className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                                          title="Edit payment"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                          onClick={() => handleDeletePayment(p.id)}
+                                          className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                          title="Delete payment"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                  )}
                                 </tr>
                               ))}
                               {(booking.payments || []).length === 0 && (
-                                <tr><td colSpan={3} className="p-3 text-center text-gray-400">No payments yet</td></tr>
+                                <tr><td colSpan={isMasterAdmin ? 4 : 3} className="p-3 text-center text-gray-400">No payments yet</td></tr>
                               )}
                             </tbody>
                           </table>
@@ -705,6 +856,164 @@ export default function PlotDetailsClient({
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
                 <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
                   {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Apply')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT PLOT MODAL (master_admin) ===== */}
+      {showEditPlotModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Plot Details</h2>
+              <button onClick={() => setShowEditPlotModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={handleEditPlot} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Plot Number</label>
+                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPlotForm.plot_number}
+                    onChange={e => setEditPlotForm({ ...editPlotForm, plot_number: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Area (sq.yd)</label>
+                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPlotForm.area_sqyd}
+                    onChange={e => setEditPlotForm({ ...editPlotForm, area_sqyd: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">List Price (₹)</label>
+                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPlotForm.price}
+                    onChange={e => setEditPlotForm({ ...editPlotForm, price: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                    value={editPlotForm.status}
+                    onChange={e => setEditPlotForm({ ...editPlotForm, status: e.target.value })}>
+                    <option value="available">Available</option>
+                    <option value="token_paid">Token Paid</option>
+                    <option value="partially_paid">Partially Paid</option>
+                    <option value="sold">Sold</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditPlotModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending}
+                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
+                  {isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT BOOKING MODAL (master_admin) ===== */}
+      {showEditBookingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Booking</h2>
+              <button onClick={() => setShowEditBookingModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={handleEditBooking} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount (₹)</label>
+                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editBookingForm.total_amount}
+                    onChange={e => setEditBookingForm({ ...editBookingForm, total_amount: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
+                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editBookingForm.discount_amount}
+                    onChange={e => setEditBookingForm({ ...editBookingForm, discount_amount: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Commission %</label>
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editBookingForm.commission_percent}
+                    onChange={e => setEditBookingForm({ ...editBookingForm, commission_percent: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                    value={editBookingForm.status}
+                    onChange={e => setEditBookingForm({ ...editBookingForm, status: e.target.value })}>
+                    <option value="pending">Pending</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditBookingModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending}
+                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
+                  {isPending ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT PAYMENT MODAL (master_admin) ===== */}
+      {showEditPaymentModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Edit Payment</h2>
+              <button onClick={() => setShowEditPaymentModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={handleEditPayment} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
+                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                  value={editPaymentForm.amount}
+                  onChange={e => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input type="date" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPaymentForm.payment_date}
+                    onChange={e => setEditPaymentForm({ ...editPaymentForm, payment_date: e.target.value })} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
+                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                    value={editPaymentForm.payment_mode}
+                    onChange={e => setEditPaymentForm({ ...editPaymentForm, payment_mode: e.target.value })}>
+                    <option>Cash</option>
+                    <option>Bank Transfer</option>
+                    <option>Cheque</option>
+                    <option>UPI</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description / Transaction ID</label>
+                <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                  value={editPaymentForm.description}
+                  onChange={e => setEditPaymentForm({ ...editPaymentForm, description: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditPaymentModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending}
+                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
+                  {isPending ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>

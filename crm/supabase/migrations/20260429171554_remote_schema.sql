@@ -111,7 +111,8 @@ ALTER TYPE "public"."receipt_type_enum" OWNER TO "postgres";
 CREATE TYPE "public"."role_enum" AS ENUM (
     'admin',
     'employee',
-    'client'
+    'client',
+    'master_admin'
 );
 
 
@@ -158,7 +159,7 @@ ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
 CREATE OR REPLACE FUNCTION "public"."is_admin"() RETURNS boolean
     LANGUAGE "sql" SECURITY DEFINER
     AS $$
-  SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin');
+  SELECT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role IN ('admin', 'master_admin'));
 $$;
 
 

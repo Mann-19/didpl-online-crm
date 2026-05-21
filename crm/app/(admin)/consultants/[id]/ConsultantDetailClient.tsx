@@ -5,10 +5,10 @@ import Link from 'next/link';
 import {
   ArrowLeft, Phone, Mail, MapPin, Building2, CreditCard,
   Wallet, TrendingUp, Users, Briefcase, CheckCircle2,
-  Receipt, Edit2, X, Save, Clock
+  Receipt, Edit2, X, Save, Clock, Trash2
 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
-import { updateConsultant, addConsultantPayout } from '../../people.actions';
+import { updateConsultant, addConsultantPayout, updateConsultantPayout, deleteConsultantPayout } from '../../people.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import { Toast, useToast } from '@/components/ui/Toast';
 
@@ -28,6 +28,14 @@ const statusBadge = (status: string) => {
 export default function ConsultantDetailClient({ consultant, isAdmin, role }: any) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [showEditPayoutModal, setShowEditPayoutModal] = useState(false);
+  const [activePayoutId, setActivePayoutId] = useState<string | null>(null);
+  const [editPayoutForm, setEditPayoutForm] = useState({
+    amount: '',
+    payment_date: '',
+    payment_mode: 'Bank Transfer',
+    description: '',
+  });
   const [isPending, startTransition] = useTransition();
   const { toast, showToast, hideToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -67,6 +75,7 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
     : '—';
 
   const isEmployee = role === 'employee';
+  const isMasterAdmin = role === 'master_admin';
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,6 +131,35 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
     showToast('Payout recorded successfully', 'success');
     setShowPayoutModal(false);
     setTimeout(() => window.location.reload(), 800);
+  };
+
+  const handleEditPayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activePayoutId) return;
+    setSaving(true);
+    const result = await updateConsultantPayout(activePayoutId, {
+      amount: parseFloat(editPayoutForm.amount) || 0,
+      payment_date: editPayoutForm.payment_date,
+      payment_mode: editPayoutForm.payment_mode,
+      description: editPayoutForm.description,
+    });
+    setSaving(false);
+    if (result.success) {
+      setShowEditPayoutModal(false);
+      setTimeout(() => window.location.reload(), 800);
+    } else {
+      alert(result.error || 'Failed to update payout');
+    }
+  };
+
+  const handleDeletePayout = async (payoutId: string) => {
+    if (!confirm('Delete this payout record? This cannot be undone.')) return;
+    const result = await deleteConsultantPayout(payoutId);
+    if (result.success) {
+      window.location.reload();
+    } else {
+      alert(result.error || 'Failed to delete payout');
+    }
   };
 
   return (
@@ -282,6 +320,31 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
                     </div>
                     <div className="text-xs text-gray-400 mt-1">{formatDate(p.payment_date)}</div>
                     {p.description && <div className="text-xs text-gray-400 truncate">{p.description}</div>}
+                    {isMasterAdmin && (
+                      <div className="flex gap-1 mt-1.5">
+                        <button
+                          onClick={() => {
+                            setActivePayoutId(p.id);
+                            setEditPayoutForm({
+                              amount: String(p.amount || ''),
+                              payment_date: p.payment_date || '',
+                              payment_mode: p.payment_mode || 'Bank Transfer',
+                              description: p.description || '',
+                            });
+                            setShowEditPayoutModal(true);
+                          }}
+                          className="flex items-center gap-1 text-xs text-blue-500 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors"
+                        >
+                          <Edit2 className="w-3 h-3" /> Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeletePayout(p.id)}
+                          className="flex items-center gap-1 text-xs text-red-500 hover:bg-red-50 px-2 py-0.5 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -331,6 +394,14 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
                       value={editForm.address}
                       onChange={e => setEditForm({ ...editForm, address: e.target.value })} />
                   </div>
+                  {isMasterAdmin && (
+                    <div className="flex flex-col gap-1 md:col-span-2">
+                      <label className="text-sm font-medium text-gray-700">Consultant Code</label>
+                      <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 font-mono uppercase focus:ring-2 focus:ring-amber-500"
+                        value={(editForm as any).consultant_code || ''}
+                        onChange={e => setEditForm({ ...editForm, consultant_code: e.target.value } as any)} />
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
@@ -417,6 +488,59 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
                 <button type="button" onClick={() => setShowPayoutModal(false)} className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={saving} className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
                   <Wallet className="w-4 h-4" /> {saving ? 'Processing...' : 'Confirm Payout'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT PAYOUT MODAL (master_admin) */}
+      {showEditPayoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+              <h3 className="text-lg font-bold text-gray-900">Edit Payout</h3>
+              <button onClick={() => setShowEditPayoutModal(false)} className="p-1.5 rounded-full hover:bg-gray-100 text-gray-400"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleEditPayout} className="p-6 space-y-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Amount (₹)</label>
+                <input type="number" step="0.01" min="0" className="p-2 border border-gray-300 rounded-lg text-lg font-bold font-mono text-gray-900"
+                  value={editPayoutForm.amount}
+                  onChange={e => setEditPayoutForm({ ...editPayoutForm, amount: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700">Date</label>
+                  <input type="date" className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPayoutForm.payment_date}
+                    onChange={e => setEditPayoutForm({ ...editPayoutForm, payment_date: e.target.value })} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium text-gray-700">Mode</label>
+                  <select className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                    value={editPayoutForm.payment_mode}
+                    onChange={e => setEditPayoutForm({ ...editPayoutForm, payment_mode: e.target.value })}>
+                    <option>Bank Transfer</option>
+                    <option>Cash</option>
+                    <option>Cheque</option>
+                    <option>UPI</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700">Notes / Reference</label>
+                <input className="p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                  value={editPayoutForm.description}
+                  onChange={e => setEditPayoutForm({ ...editPayoutForm, description: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button type="button" onClick={() => setShowEditPayoutModal(false)}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
