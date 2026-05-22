@@ -42,17 +42,14 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         plot: p.plot_number,
         area: p.area_sqyd ? `${p.area_sqyd} sq.yd` : "N/A",
         status: p.status === "sold" ? "Sold" :
-          p.status === "token_paid" ? "Token" :
-            p.status === "partially_paid" ? "Partial" : "Available",
+            p.status === "token_paid" || p.status === "partially_paid" ? "Token Paid" : "Available",
         paymentPercentage: Math.round(percent),
         price: `₹${parseInt(totalAmount).toLocaleString("en-IN")}`,
         amountPaid: `₹${parseInt(amountPaid).toLocaleString("en-IN")}`,
         clientName: p.clients?.name || "—",
         colorClass:
           p.status === "sold" ? "status-sold" :
-            p.status === "token_paid" ? "status-token" :
-              p.status === "partially_paid" ? "status-partial" :
-                "status-available",
+            p.status === "token_paid" || p.status === "partially_paid" ? "status-token" : "status-available",
       };
 
       dataMap[p.plot_number] = plotData;

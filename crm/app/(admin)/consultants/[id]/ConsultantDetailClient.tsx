@@ -474,6 +474,7 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
                     <option>Cash</option>
                     <option>Cheque</option>
                     <option>UPI</option>
+                    <option>NEFT/IMPS/RTGS</option>
                   </select>
                 </div>
               </div>
@@ -526,6 +527,7 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
                     <option>Cash</option>
                     <option>Cheque</option>
                     <option>UPI</option>
+                    <option>NEFT/IMPS/RTGS</option>
                   </select>
                 </div>
               </div>

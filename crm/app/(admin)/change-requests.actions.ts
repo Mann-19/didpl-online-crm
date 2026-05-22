@@ -256,10 +256,48 @@ async function applyApprovedChange(change: PendingChange): Promise<ChangeRequest
     error = result.error
   } else if (operation === 'update') {
     if (!entity_id) return { success: false, error: 'entity_id required for update' }
+    
+    // SPECIAL HANDLING for Booking side-effects
+    if (entity_type === 'booking') {
+      if (payload.status === 'confirmed') {
+        const { data: b } = await supabase.from('bookings').select('plot_id, client_id').eq('id', entity_id).single()
+        if (b) {
+          const { confirmBooking } = await import('./plots.actions')
+          const res = await confirmBooking(entity_id, b.plot_id, b.client_id)
+          if (!res.success) return res
+        }
+      } else if (payload.status === 'pending') {
+        const { data: b } = await supabase.from('bookings').select('plot_id').eq('id', entity_id).single()
+        if (b) {
+          const { revertBooking } = await import('./plots.actions')
+          const res = await revertBooking(entity_id, b.plot_id)
+          if (!res.success) return res
+        }
+      } else if (payload.plot_id) {
+        // Transfer plot
+        const { transferBooking } = await import('./plots.actions')
+        const res = await transferBooking(entity_id, payload.plot_id)
+        if (!res.success) return res
+      }
+    }
+    
+    // Proceed with regular update (this may be redundant for confirmed/pending but harmless)
     const result = await supabase.from(table).update(payload).eq('id', entity_id)
     error = result.error
   } else if (operation === 'delete') {
     if (!entity_id) return { success: false, error: 'entity_id required for delete' }
+    
+    // SPECIAL HANDLING for Booking cancellation
+    if (entity_type === 'booking') {
+      const { data: b } = await supabase.from('bookings').select('plot_id').eq('id', entity_id).single()
+      if (b) {
+        const { cancelBooking } = await import('./plots.actions')
+        const res = await cancelBooking(entity_id, b.plot_id)
+        if (!res.success) return res
+        return { success: true } // cancelBooking deletes it
+      }
+    }
+
     const result = await supabase.from(table).delete().eq('id', entity_id)
     error = result.error
   }

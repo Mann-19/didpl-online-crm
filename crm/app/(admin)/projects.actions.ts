@@ -59,6 +59,7 @@ function calculateProjectStats(project: any, plots: any[]) {
     collectionRate,
     pendingPercentage,
     clientCount: clients.size,
+    pricePerUnit: plots.find((p: any) => p.price_per_unit)?.price_per_unit || 0,
   }
 }
 
@@ -147,8 +148,7 @@ export async function getProjectOverview(projectId: string) {
   const statusCounts = { available: 0, token: 0, partial: 0, sold: 0 }
   activePlots?.forEach((plot: any) => {
     if (plot.status === 'available') statusCounts.available++
-    else if (plot.status === 'token_paid') statusCounts.token++
-    else if (plot.status === 'partially_paid') statusCounts.partial++
+    else if (plot.status === 'token_paid' || plot.status === 'partially_paid') statusCounts.token++
     else if (plot.status === 'sold') statusCounts.sold++
   })
 
@@ -229,7 +229,13 @@ export async function getProjectClients(projectId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('plots')
-    .select('clients(*)')
+    .select(`
+      clients(*),
+      bookings(
+        id, status, total_amount, discount_amount,
+        payments(amount)
+      )
+    `)
     .eq('project_id', projectId)
     .not('client_id', 'is', null)
 
@@ -238,11 +244,22 @@ export async function getProjectClients(projectId: string) {
     return []
   }
 
-  // Deduplicate clients
   const uniqueClients = new Map()
   data.forEach((p: any) => {
-    if (p.clients && !uniqueClients.has(p.clients.id)) {
-      uniqueClients.set(p.clients.id, p.clients)
+    if (p.clients) {
+      const clientId = p.clients.id
+      if (!uniqueClients.has(clientId)) {
+        uniqueClients.set(clientId, { ...p.clients, _dealTotal: 0, _paidTotal: 0 })
+      }
+      
+      const clientRecord = uniqueClients.get(clientId)
+      const activeBooking = p.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending')
+      if (activeBooking) {
+        const deal = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
+        const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
+        clientRecord._dealTotal += deal
+        clientRecord._paidTotal += paid
+      }
     }
   })
 

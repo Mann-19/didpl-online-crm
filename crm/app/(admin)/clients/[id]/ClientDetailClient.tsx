@@ -567,6 +567,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                     <option>Bank Transfer</option>
                     <option>Cheque</option>
                     <option>UPI</option>
+                    <option>NEFT/IMPS/RTGS</option>
                   </select>
                 </div>
               </div>

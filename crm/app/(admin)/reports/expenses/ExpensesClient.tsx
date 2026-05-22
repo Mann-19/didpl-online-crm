@@ -158,7 +158,7 @@ export default function ExpensesClient({ data }: { data: any[] }) {
   }
 
   const uniqueTypes = Array.from(new Set(data.map(r => r.expense_type).filter(Boolean)));
-  const needsBankDetails = ['Bank Transfer', 'Cheque', 'UPI'].includes(formData.payment_mode);
+  const needsBankDetails = ['Bank Transfer', 'Cheque', 'UPI', 'NEFT/IMPS/RTGS'].includes(formData.payment_mode);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
@@ -357,6 +357,7 @@ export default function ExpensesClient({ data }: { data: any[] }) {
                         <option>Cheque</option>
                         <option>UPI</option>
                         <option>Credit Card</option>
+                        <option>NEFT/IMPS/RTGS</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1.5">

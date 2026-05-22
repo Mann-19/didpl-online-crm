@@ -11,7 +11,8 @@ import { formatNumber } from '@/utils/formatNumber';
 import {
   createBooking, addPayment, confirmBooking,
   cancelBooking, updateBookingDiscount, revertBooking,
-  updatePlot, updateBooking, updatePayment, deletePayment
+  updatePlot, updateBooking, updatePayment, deletePayment,
+  transferBooking, getAvailablePlots
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -36,6 +37,12 @@ export default function PlotDetailsClient({
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+
+  // Transfer Modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferBookingId, setTransferBookingId] = useState<string | null>(null);
+  const [availablePlots, setAvailablePlots] = useState<any[]>([]);
+  const [selectedNewPlotId, setSelectedNewPlotId] = useState('');
 
   const [isPending, startTransition] = React.useTransition();
   const { toast, showToast, hideToast } = useToast();
@@ -69,7 +76,7 @@ export default function PlotDetailsClient({
     plot_number: String(plot.plot_number || ''),
     area_sqyd: String(plot.area_sqyd || ''),
     price: String(plot.price || ''),
-    status: plot.status || 'available',
+    status: plot.status === 'partially_paid' ? 'token_paid' : (plot.status || 'available'),
   });
   const [editBookingForm, setEditBookingForm] = useState({
     total_amount: '',
@@ -132,6 +139,48 @@ export default function PlotDetailsClient({
         if (result.success) {
           showToast('Booking created successfully', 'success');
           setShowAddClientModal(false);
+          setTimeout(reload, 800);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      }
+    });
+  };
+
+  const openTransferModal = async (bookingId: string) => {
+    setTransferBookingId(bookingId);
+    setSelectedNewPlotId('');
+    const plots = await getAvailablePlots(projectId);
+    setAvailablePlots(plots);
+    setShowTransferModal(true);
+  };
+
+  const handleTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferBookingId || !selectedNewPlotId) return;
+
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find((b: any) => b.id === transferBookingId);
+        const newPlot = availablePlots.find((p: any) => p.id === selectedNewPlotId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking',
+          entity_id: transferBookingId,
+          operation: 'update',
+          payload: { plot_id: selectedNewPlotId },
+          description: `Transfer booking for "${booking?.client?.name}" from plot ${plot.plot_number} to plot ${newPlot?.plot_number}`,
+        });
+        if (result.success) {
+          showToast('Transfer request submitted for approval', 'warning');
+          setShowTransferModal(false);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      } else {
+        const result = await transferBooking(transferBookingId, selectedNewPlotId);
+        if (result.success) {
+          showToast('Plot transferred successfully', 'success');
+          setShowTransferModal(false);
           setTimeout(reload, 800);
         } else {
           showToast(result.error || 'Failed', 'error');
@@ -360,6 +409,7 @@ export default function PlotDetailsClient({
     setShowAddClientModal(false);
     setShowPaymentModal(false);
     setShowDiscountModal(false);
+    setShowTransferModal(false);
   };
 
   const handlePrintWelcomeLetter = async (booking: any) => {
@@ -398,8 +448,7 @@ export default function PlotDetailsClient({
 
   const plotStatusBadge = () => {
     if (plot.status === 'sold') return 'bg-rose-100 text-rose-700';
-    if (plot.status === 'token_paid') return 'bg-amber-100 text-amber-700';
-    if (plot.status === 'partially_paid') return 'bg-orange-100 text-orange-700';
+    if (plot.status === 'token_paid' || plot.status === 'partially_paid') return 'bg-amber-100 text-amber-700';
     return 'bg-emerald-100 text-emerald-700';
   };
 
@@ -417,7 +466,7 @@ export default function PlotDetailsClient({
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Plot {plot.plot_number}</h1>
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>
-              {plot.status?.replace('_', ' ')}
+              {plot.status === 'partially_paid' ? 'Token Paid' : plot.status?.replace('_', ' ')}
             </span>
             {isMasterAdmin && (
               <button
@@ -563,6 +612,14 @@ export default function PlotDetailsClient({
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Confirmation' : 'Confirm Owner'}
+                          </button>
+                        )}
+                        {(isAdmin || isEmployee) && booking.status === 'pending' && (
+                          <button
+                            onClick={() => openTransferModal(booking.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Transfer' : 'Transfer Plot'}
                           </button>
                         )}
                         {(isAdmin || isEmployee) && booking.status === 'pending' && (
@@ -816,6 +873,7 @@ export default function PlotDetailsClient({
                   <option>Bank Transfer</option>
                   <option>Cheque</option>
                   <option>UPI</option>
+                  <option>NEFT/IMPS/RTGS</option>
                 </select>
               </div>
               <div>
@@ -898,7 +956,6 @@ export default function PlotDetailsClient({
                     onChange={e => setEditPlotForm({ ...editPlotForm, status: e.target.value })}>
                     <option value="available">Available</option>
                     <option value="token_paid">Token Paid</option>
-                    <option value="partially_paid">Partially Paid</option>
                     <option value="sold">Sold</option>
                   </select>
                 </div>
@@ -999,6 +1056,7 @@ export default function PlotDetailsClient({
                     <option>Bank Transfer</option>
                     <option>Cheque</option>
                     <option>UPI</option>
+                    <option>NEFT/IMPS/RTGS</option>
                   </select>
                 </div>
               </div>
@@ -1032,6 +1090,47 @@ export default function PlotDetailsClient({
         fileName={pdfFileName}
         title="Welcome Letter Preview"
       />
+
+      {/* ===== TRANSFER PLOT MODAL ===== */}
+      {showTransferModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Plot Transfer' : 'Transfer Client to Another Plot'}</h2>
+              <button onClick={() => setShowTransferModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Available Plot</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
+                  value={selectedNewPlotId}
+                  onChange={(e) => setSelectedNewPlotId(e.target.value)}
+                  required
+                >
+                  <option value="" disabled>Select a plot...</option>
+                  {availablePlots.map((p: any) => (
+                    <option key={p.id} value={p.id}>
+                      Plot {p.plot_number} ({p.area_sqyd} sq.yd) - ₹{formatNumber(p.price)}
+                    </option>
+                  ))}
+                </select>
+                {availablePlots.length === 0 && (
+                  <p className="text-xs text-red-500 mt-1">No available plots found in this project.</p>
+                )}
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setShowTransferModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending || !selectedNewPlotId}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50">
+                  {isPending ? 'Processing...' : (isEmployee ? 'Submit Request' : 'Confirm Transfer')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

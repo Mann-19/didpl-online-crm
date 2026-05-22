@@ -3,6 +3,7 @@ import ProjectNav from '@/components/projects/ProjectNav';
 import BackLink from '@/components/ui/BackLink';
 import { notFound } from 'next/navigation';
 import { Users, Phone, MapPin } from 'lucide-react';
+import { formatNumber } from '@/utils/formatNumber';
 import Link from 'next/link';
 
 export default async function ProjectClientsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -70,10 +71,46 @@ export default async function ProjectClientsPage({ params }: { params: Promise<{
                     )}
                   </div>
                   
-                  <div className="mt-6 pt-4 border-t border-gray-100">
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    {(() => {
+                      const deal = client._dealTotal || 0;
+                      const paid = client._paidTotal || 0;
+                      const balance = deal - paid;
+                      const progress = deal > 0 ? Math.min(100, (paid / deal) * 100) : 0;
+                      return (
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-end text-sm">
+                            <div>
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Plot Price</p>
+                              <p className="font-semibold text-gray-900">₹{formatNumber(deal)}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Amount Paid</p>
+                              <p className="font-semibold text-emerald-600">₹{formatNumber(paid)}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs mb-1">
+                              <span className="font-medium text-orange-600">Due: ₹{formatNumber(Math.max(0, balance))}</span>
+                              <span className="text-gray-500">{formatNumber(progress)}%</span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                  <div className="mt-4 pt-3 border-t border-gray-100 text-center">
                     <Link
                       href={`/clients/${client.id}`}
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors inline-block w-full"
                     >
                       View Full Profile &rarr;
                     </Link>

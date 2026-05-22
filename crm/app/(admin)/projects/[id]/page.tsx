@@ -32,7 +32,6 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
   const statusCards = [
     { label: 'Available', count: statusCounts.available, color: 'bg-emerald-500', text: 'text-emerald-700', bgSoft: 'bg-emerald-50' },
     { label: 'Token Paid', count: statusCounts.token, color: 'bg-amber-400', text: 'text-amber-700', bgSoft: 'bg-amber-50' },
-    { label: 'Partially Paid', count: statusCounts.partial, color: 'bg-orange-500', text: 'text-orange-700', bgSoft: 'bg-orange-50' },
     { label: 'Sold', count: statusCounts.sold, color: 'bg-rose-600', text: 'text-rose-700', bgSoft: 'bg-rose-50' },
   ];
 
@@ -51,6 +50,12 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
                 <span>{project.location || 'Location not specified'}</span>
                 <span className="text-gray-300 hidden sm:inline">•</span>
                 <span className="w-full sm:w-auto mt-1 sm:mt-0">{project.totalAreaSqYd > 0 ? `${formatNumber(project.totalAreaSqYd)} sq.yd` : 'N/A'}</span>
+                {project.pricePerUnit > 0 && (
+                  <>
+                    <span className="text-gray-300 hidden sm:inline">•</span>
+                    <span className="w-full sm:w-auto mt-1 sm:mt-0">₹{formatNumber(project.pricePerUnit)} / sq.yd</span>
+                  </>
+                )}
               </div>
             </div>
             {isMasterAdmin && (

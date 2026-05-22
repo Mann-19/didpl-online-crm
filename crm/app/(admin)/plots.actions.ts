@@ -241,6 +241,113 @@ export async function cancelBooking(
   return { success: true }
 }
 
+// Transfer a booking to a different plot
+export async function transferBooking(
+  bookingId: string,
+  newPlotId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  // 1. Get the current booking details to find old plot ID and status
+  const { data: booking, error: fetchError } = await supabase
+    .from('bookings')
+    .select('plot_id, status, client_id')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchError || !booking) {
+    return { success: false, error: fetchError?.message || 'Booking not found' }
+  }
+
+  const oldPlotId = booking.plot_id
+  const clientId = booking.client_id
+  const bookingStatus = booking.status
+
+  // 2. Update booking to point to new plot
+  const { error: updateBookingError } = await supabase
+    .from('bookings')
+    .update({ plot_id: newPlotId })
+    .eq('id', bookingId)
+
+  if (updateBookingError) {
+    return { success: false, error: updateBookingError.message }
+  }
+
+  // 3. Update new plot's status based on booking status
+  // If it's confirmed, the plot becomes sold (wait, based on user feedback, sold is 100% payment, but the prompt says "Confirm status is just a way to fix that client to that plot". We will just set it to token_paid or partially_paid or keep whatever status `confirmBooking` does. Since the booking is being transferred, and the instruction says "Confirm status is just a way to fix that client to that plot", we should update the client_id and status if needed. Actually, `createBooking` sets status to 'token_paid' and links client_id. If transferred, we can set it to 'token_paid' if pending, and 'sold' if confirmed (since we are matching existing logic).)
+  // Wait, the user said "only pending" bookings can be transferred!
+  // So bookingStatus is guaranteed to be 'pending'.
+  const newStatus = 'token_paid' // for pending bookings
+
+  const { error: updateNewPlotError } = await supabase
+    .from('plots')
+    .update({ status: newStatus, client_id: clientId })
+    .eq('id', newPlotId)
+
+  if (updateNewPlotError) {
+    return { success: false, error: updateNewPlotError.message }
+  }
+
+  // 4. Recalculate old plot's status
+  const { data: remaining } = await supabase
+    .from('bookings')
+    .select('id, status')
+    .eq('plot_id', oldPlotId)
+
+  const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
+  const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
+
+  let oldPlotNewStatus = 'available'
+  let oldPlotNewClientId = null
+
+  if (hasConfirmed) {
+    // Keep existing status/client as is, but we might not know who the confirmed client is here. 
+    // Usually if there's a confirmed booking, it's sold.
+    oldPlotNewStatus = 'sold'
+    // We don't change client_id because it should be linked to the confirmed booking's client
+  } else if (hasPending) {
+    oldPlotNewStatus = 'token_paid'
+    // There are other pending bookings, so leave client_id as whatever it was, 
+    // or maybe the first pending booking's client? The system doesn't strictly track which pending client is linked to the plot.
+  }
+
+  // Only update client_id if it's becoming available
+  const updateData: any = { status: oldPlotNewStatus }
+  if (oldPlotNewStatus === 'available') {
+    updateData.client_id = null
+  }
+
+  const { error: updateOldPlotError } = await supabase
+    .from('plots')
+    .update(updateData)
+    .eq('id', oldPlotId)
+
+  if (updateOldPlotError) {
+    return { success: false, error: updateOldPlotError.message }
+  }
+
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+export async function getAvailablePlots(projectId: string) {
+  const supabase = await createClient()
+
+  const { data: plots, error } = await supabase
+    .from('plots')
+    .select('id, plot_number, area_sqyd, price')
+    .eq('project_id', projectId)
+    .eq('status', 'available')
+    .order('plot_number', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching available plots:', error)
+    return []
+  }
+
+  return plots || []
+}
+
 // Update discount on an existing booking
 export async function updateBookingDiscount(
   bookingId: string,
