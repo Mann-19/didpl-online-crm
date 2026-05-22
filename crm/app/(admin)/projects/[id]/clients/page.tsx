@@ -6,13 +6,21 @@ import { Users, Phone, MapPin } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
 import Link from 'next/link';
 
-export default async function ProjectClientsPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProjectClientsPage({ 
+  params,
+  searchParams 
+}: { 
+  params: Promise<{ id: string }>,
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
   const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
   const projectId = resolvedParams.id;
+  const status = typeof resolvedSearchParams.status === 'string' ? resolvedSearchParams.status : undefined;
   
   const [overview, clients] = await Promise.all([
     getProjectOverview(projectId),
-    getProjectClients(projectId)
+    getProjectClients(projectId, status)
   ]);
 
   if (!overview) {
@@ -29,8 +37,10 @@ export default async function ProjectClientsPage({ params }: { params: Promise<{
           <BackLink href="/projects" dirname="All Projects" accent="violet" />
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">{project.name}</h1>
-              <p className="text-gray-500 mt-1">Unique clients associated with this project: {clients.length}</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
+                {project.name} {status ? `- ${status === 'sold' ? 'Confirmed (Sold)' : status === 'token_paid' ? 'Token Paid' : status.charAt(0).toUpperCase() + status.slice(1)} Clients` : ''}
+              </h1>
+              <p className="text-gray-500 mt-1">Client Bookings associated with this project: {clients.length}</p>
             </div>
           </div>
         </div>
@@ -42,8 +52,8 @@ export default async function ProjectClientsPage({ params }: { params: Promise<{
         <div className="mt-6">
           {clients.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {clients.map((client: any) => (
-                <div key={client.id} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+              {clients.map((client: any, index: number) => (
+                <div key={`${client.id}-${client._plotNumber || index}`} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
@@ -54,6 +64,11 @@ export default async function ProjectClientsPage({ params }: { params: Promise<{
                         <p className="text-xs text-gray-500">{client.client_code || 'No Code'}</p>
                       </div>
                     </div>
+                    {client._plotNumber && (
+                      <div className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold border border-emerald-200 shadow-sm">
+                        Plot {client._plotNumber}
+                      </div>
+                    )}
                   </div>
                   
                   <div className="space-y-2 text-sm">

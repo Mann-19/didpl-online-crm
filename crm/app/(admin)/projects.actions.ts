@@ -7,8 +7,43 @@ import { filterActivePlots } from '../project-utils'
 // Helper to calculate project stats
 function calculateProjectStats(project: any, plots: any[]) {
   const totalPlots = plots.length
-  const soldPlots = plots.filter((p: any) => p.status !== 'available').length
-  const availablePlots = totalPlots - soldPlots
+  
+  let confirmedPlots = 0
+  let soldPlots = 0
+  let tokenPlots = 0
+  let unavailablePlots = 0 // Confirmed or Sold
+
+  plots.forEach((plot: any) => {
+    const activeBooking = plot.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending') || plot.bookings?.[0]
+    let isSold = false
+
+    if (activeBooking) {
+      const dealValue = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
+      const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
+      
+      if (dealValue > 0 && paid >= dealValue) {
+        isSold = true
+      }
+      
+      if (activeBooking.status === 'confirmed') {
+        confirmedPlots++
+      }
+    }
+
+    if (isSold) {
+      soldPlots++
+    }
+
+    if (plot.status === 'token_paid' || plot.status === 'partially_paid') {
+      tokenPlots++
+    }
+
+    if (activeBooking?.status === 'confirmed' || isSold) {
+      unavailablePlots++
+    }
+  })
+
+  const availablePlots = totalPlots - unavailablePlots
 
   let totalRevenue = 0
   let amountReceived = 0
@@ -47,7 +82,9 @@ function calculateProjectStats(project: any, plots: any[]) {
   return {
     ...project,
     totalPlots,
+    confirmedPlots,
     soldPlots,
+    tokenPlots,
     availablePlots,
     totalRevenue,
     amountReceived,
@@ -147,10 +184,10 @@ export async function getProjectOverview(projectId: string) {
   // Calculate status counts
   const statusCounts = { available: 0, token: 0, partial: 0, sold: 0 }
   activePlots?.forEach((plot: any) => {
-    if (plot.status === 'available') statusCounts.available++
-    else if (plot.status === 'token_paid' || plot.status === 'partially_paid') statusCounts.token++
+    if (plot.status === 'token_paid' || plot.status === 'partially_paid') statusCounts.token++
     else if (plot.status === 'sold') statusCounts.sold++
   })
+  statusCounts.available = (activePlots?.length || 0) - statusCounts.sold
 
   return { project: stats, statusCounts }
 }
@@ -225,11 +262,12 @@ export async function updateProject(projectId: string, formData: any) {
 }
 
 // 6. Get Project Clients
-export async function getProjectClients(projectId: string) {
+export async function getProjectClients(projectId: string, status?: string) {
   const supabase = await createClient()
-  const { data, error } = await supabase
+  let query = supabase
     .from('plots')
     .select(`
+      plot_number,
       clients(*),
       bookings(
         id, status, total_amount, discount_amount,
@@ -239,29 +277,51 @@ export async function getProjectClients(projectId: string) {
     .eq('project_id', projectId)
     .not('client_id', 'is', null)
 
+  // if (status) {
+  //   query = query.eq('status', status)
+  // }
+
+  const { data, error } = await query
+
   if (error) {
     console.error('Error fetching clients:', error)
     return []
   }
 
-  const uniqueClients = new Map()
+  const result: any[] = []
   data.forEach((p: any) => {
     if (p.clients) {
-      const clientId = p.clients.id
-      if (!uniqueClients.has(clientId)) {
-        uniqueClients.set(clientId, { ...p.clients, _dealTotal: 0, _paidTotal: 0 })
-      }
-      
-      const clientRecord = uniqueClients.get(clientId)
-      const activeBooking = p.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending')
+      const clientRecord = { ...p.clients, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number }
+      const activeBooking = p.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending') || p.bookings?.[0]
+      let isSold = false
+      let isConfirmed = false
+      let isTokenPaid = false
+
       if (activeBooking) {
         const deal = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
         const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
+        
+        if (deal > 0 && paid >= deal) isSold = true
+        if (activeBooking.status === 'confirmed') isConfirmed = true
+        
         clientRecord._dealTotal += deal
         clientRecord._paidTotal += paid
+      }
+
+      if (p.status === 'token_paid' || p.status === 'partially_paid') {
+        isTokenPaid = true
+      }
+
+      let match = true
+      if (status === 'confirmed') match = isConfirmed
+      if (status === 'sold') match = isSold
+      if (status === 'token_paid') match = isTokenPaid
+
+      if (match) {
+        result.push(clientRecord)
       }
     }
   })
 
-  return Array.from(uniqueClients.values())
+  return result
 }

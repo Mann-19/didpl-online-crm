@@ -263,10 +263,21 @@ export async function transferBooking(
   const clientId = booking.client_id
   const bookingStatus = booking.status
 
+  // 1.5 Get new plot details
+  const { data: newPlot, error: newPlotError } = await supabase
+    .from('plots')
+    .select('price')
+    .eq('id', newPlotId)
+    .single()
+
+  if (newPlotError || !newPlot) {
+    return { success: false, error: newPlotError?.message || 'New plot not found' }
+  }
+
   // 2. Update booking to point to new plot
   const { error: updateBookingError } = await supabase
     .from('bookings')
-    .update({ plot_id: newPlotId })
+    .update({ plot_id: newPlotId, total_amount: newPlot.price })
     .eq('id', bookingId)
 
   if (updateBookingError) {

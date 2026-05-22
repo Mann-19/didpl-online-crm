@@ -1,21 +1,21 @@
 import jsPDF from 'jspdf';
 import { formatNumber } from '../formatNumber';
 
-const toIndianWords = (num: number) => {
+const toIndianWords = (num: number): string => {
   if (!num || isNaN(num) || num === 0) return 'zero only.';
 
-  const convertBase = (n_val: number): string => {
-    const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
-    const b = ['', '', 'twenty ', 'thirty ', 'forty ', 'fifty ', 'sixty ', 'seventy ', 'eighty ', 'ninety '];
+  const convertBase = (n_val: number) => {
+    const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+    const b = ['', '', 'Twenty ', 'Thirty ', 'Forty ', 'Fifty ', 'Sixty ', 'Seventy ', 'Eighty ', 'Ninety '];
 
     const match = ('000000000' + Math.floor(n_val)).slice(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
     if (!match) return '';
     let str = '';
-    str += (Number(match[1]) !== 0) ? (a[Number(match[1])] || b[Number(match[1][0])] + a[Number(match[1][1])]) + 'crore ' : '';
-    str += (Number(match[2]) !== 0) ? (a[Number(match[2])] || b[Number(match[2][0])] + a[Number(match[2][1])]) + 'lac ' : '';
-    str += (Number(match[3]) !== 0) ? (a[Number(match[3])] || b[Number(match[3][0])] + a[Number(match[3][1])]) + 'thousand ' : '';
-    str += (Number(match[4]) !== 0) ? (a[Number(match[4])] || b[Number(match[4][0])] + a[Number(match[4][1])]) + 'hundred ' : '';
-    str += (Number(match[5]) !== 0) ? ((str !== '') ? 'and ' : '') + (a[Number(match[5])] || b[Number(match[5][0])] + a[Number(match[5][1])]) : '';
+    str += (Number(match[1]) !== 0) ? (a[Number(match[1])] || b[Number(match[1][0])] + a[Number(match[1][1])]) + 'Crore ' : '';
+    str += (Number(match[2]) !== 0) ? (a[Number(match[2])] || b[Number(match[2][0])] + a[Number(match[2][1])]) + 'Lakh ' : '';
+    str += (Number(match[3]) !== 0) ? (a[Number(match[3])] || b[Number(match[3][0])] + a[Number(match[3][1])]) + 'Thousand ' : '';
+    str += (Number(match[4]) !== 0) ? (a[Number(match[4])] || b[Number(match[4][0])] + a[Number(match[4][1])]) + 'Hundred ' : '';
+    str += (Number(match[5]) !== 0) ? ((str !== '') ? 'And ' : '') + (a[Number(match[5])] || b[Number(match[5][0])] + a[Number(match[5][1])]) : '';
     return str.trim();
   };
 
@@ -24,11 +24,11 @@ const toIndianWords = (num: number) => {
 
   let result = convertBase(rupees);
   if (paise > 0) {
-    if (result) result += ' and ';
-    result += convertBase(paise) + 'paise';
+    if (result) result += ' And ';
+    result += convertBase(paise) + ' Paise';
   }
 
-  return (result || 'zero') + ' only.';
+  return (result || 'Zero') + ' Only.';
 };
 
 export const generateReceipt = async (data: any, preview: boolean = false) => {
@@ -39,11 +39,11 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   const contentWidth = pageWidth - (margin * 2);
   let y = 15;
 
-  // --- WATERMARK (Background) ---
+  // Watermark
   try {
     const watermarkImg = new Image();
-    watermarkImg.src = '/DIDPL-LOGO.png'; // Ensure this exists in public folder
-    await new Promise((resolve, reject) => {
+    watermarkImg.src = '/DIDPL-LOGO.png';
+    await new Promise((resolve) => {
         watermarkImg.onload = resolve;
         watermarkImg.onerror = () => {
             console.warn("Failed to load logo image");
@@ -51,154 +51,212 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
         };
     });
 
-    // Add watermark in center with low opacity
-    const wmSize = 80;
-    const wmX = (pageWidth - wmSize) / 2;
-    const wmY = (pageHeight - wmSize) / 2;
-    doc.saveGraphicsState();
-    // @ts-ignore
-    doc.setGState(new doc.GState({ opacity: 0.1 }));
-    doc.addImage(watermarkImg, 'PNG', wmX, wmY, wmSize, wmSize);
-    doc.restoreGraphicsState();
+
     
-    // --- LOGO ---
+    // Logo
     doc.addImage(watermarkImg, 'PNG', pageWidth / 2 - 15, y, 30, 30);
     y += 38;
   } catch (e) {
-    console.warn("Watermark/Logo missing");
+    console.warn("Watermark logo missing", e);
     y += 10;
   }
 
-  // --- OUTER BORDER ---
+  // Outer Border
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.5);
   doc.rect(10, 10, pageWidth - 20, pageHeight - 20);
 
-  // --- TITLE ---
+  // Title
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
+  doc.setFontSize(16);
   doc.text("Payment Acknowledgement Receipt", pageWidth / 2, y, { align: "center" });
   y += 12;
 
-  // --- BOXED INFO SECTION ---
+  // Boxed Info Section
   doc.setLineWidth(0.2);
 
   // Date Row
   doc.rect(margin, y, contentWidth, 8);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  
-  const receiptDateStr = data.receipt_date
-    ? new Date(data.receipt_date).toLocaleDateString('en-GB')
-    : new Date().toLocaleDateString('en-GB');
-
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  const receiptDateStr = data.receipt_date ? new Date(data.receipt_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
   doc.text(`Date: ${receiptDateStr}`, margin + 2, y + 5.5);
-
-  const paymentDateStr = data.payment_date || data.date
-    ? new Date(data.payment_date || data.date).toLocaleDateString('en-GB')
-    : new Date().toLocaleDateString('en-GB');
   y += 8;
 
   // Client Name Row
   doc.rect(margin, y, contentWidth, 8);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
   const genderPrefix = data.gender === 'Male' ? 'Mr.' : data.gender === 'Female' ? 'Mrs.' : 'Mr./Mrs.';
   doc.text(`${genderPrefix} ${data.client_name || 'N/A'}`, margin + 2, y + 5.5);
   y += 8;
 
-  // Address Row - Stacked format
+  // Address Row
   const addressText = data.client_address || 'N/A';
-  const city = data.client_city || '';
-  const state = data.client_state || '';
-  const pincode = data.client_pincode || '';
-
-  const addrParts = [addressText];
   const locationParts = [];
-  if (city) locationParts.push(city);
-  if (state) locationParts.push(state);
+  if (data.client_city) locationParts.push(data.client_city);
+  if (data.client_state) locationParts.push(data.client_state);
 
   let line2 = locationParts.join(', ');
-  if (pincode) {
-    line2 += line2 ? ` - ${pincode}` : `Pincode: ${pincode}`;
+  if (data.client_pincode) {
+    line2 += line2 ? ` - ${data.client_pincode}` : `Pincode: ${data.client_pincode}`;
   }
-
+  
+  const addrParts = [addressText];
   if (line2) addrParts.push(line2);
 
   const fullAddress = `Address : ${addrParts.join('\n')}`;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
   const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 4);
   const addressHeight = Math.max(12, addressLines.length * 6 + 6);
 
   doc.rect(margin, y, contentWidth, addressHeight);
-  doc.setFont("helvetica", "normal");
   doc.text(addressLines, margin + 2, y + 6);
   y += addressHeight;
 
   // Payment Details Header Row
   doc.rect(margin, y, contentWidth, 8);
   doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
   doc.text("Payment Details", pageWidth / 2, y + 5.5, { align: "center" });
   y += 8;
 
-  // --- PAYMENT DETAILS TABLE ---
-  const tableStartY = y;
-
-  // First Table Row (Amount & Words)
+  // Payment Details Table - Row 1
   const pureAmount = Number(String(data.amount || 0).replace(/,/g, ''));
-  const amountStr = `Amount Rs.${formatNumber(pureAmount)}`;
-  const wordsStr = `Rupees in words: ${toIndianWords(pureAmount)}`;
-  const wordsLines = doc.splitTextToSize(wordsStr, contentWidth / 2 - 4);
-  const row1Height = Math.max(12, wordsLines.length * 5 + 4);
-
-  // Left Cell (Amount in Words)
-  doc.rect(margin, y, contentWidth / 2, row1Height);
-  doc.setFont("helvetica", "normal");
-  doc.text(wordsLines, margin + 2, y + 6);
-
-  // Right Cell (Amount Rs.)
-  doc.rect(margin + contentWidth / 2, y, contentWidth / 2, row1Height);
+  
+  const wordsStr = toIndianWords(pureAmount);
   doc.setFont("helvetica", "bold");
-  doc.text(amountStr, margin + contentWidth / 2 + 2, y + 6);
+  doc.setFontSize(12);
+  const wordsLines = doc.splitTextToSize(wordsStr, contentWidth / 2 - 40);
+  const row1Height = Math.max(12, wordsLines.length * 6 + 4);
 
+  doc.rect(margin, y, contentWidth, row1Height);
+  doc.line(pageWidth / 2, y, pageWidth / 2, y + row1Height);
+
+  doc.setFont("helvetica", "normal");
+  doc.text("Amount ", margin + 2, y + 7);
+  const amountWidth = doc.getTextWidth("Amount ");
+  doc.setFont("helvetica", "bold");
+  doc.text(`Rs.${formatNumber(pureAmount)}`, margin + 2 + amountWidth, y + 7);
+
+  doc.setFont("helvetica", "normal");
+  doc.text("Rupees in words: ", pageWidth / 2 + 2, y + 7);
+  const wordsPrefixWidth = doc.getTextWidth("Rupees in words: ");
+  doc.setFont("helvetica", "bold");
+  doc.text(wordsLines, pageWidth / 2 + 2 + wordsPrefixWidth, y + 7);
   y += row1Height;
 
-  // Second Table Row (Mode & Project/Plot Details)
-  const modeText = `By ${data.payment_mode || 'N/A'}${data.transaction_id ? ` (Ref: ${data.transaction_id})` : ''} on ${paymentDateStr}`;
-  const modeLines = doc.splitTextToSize(modeText, contentWidth / 2 - 4);
-  
-  const projectPlotText = `Towards: Project ${data.project_name || 'N/A'}, Plot No: ${data.plot_number || 'N/A'}`;
-  const projectPlotLines = doc.splitTextToSize(projectPlotText, contentWidth / 2 - 4);
+  // Payment Details Table - Row 2
+  const row2Height = 15;
+  doc.rect(margin, y, contentWidth, row2Height);
+  const col2X = margin + (contentWidth * 0.45);
+  const col3X = margin + (contentWidth * 0.75);
+  doc.line(col2X, y, col2X, y + row2Height);
+  doc.line(col3X, y, col3X, y + row2Height);
 
-  const row2Height = Math.max(12, Math.max(modeLines.length, projectPlotLines.length) * 5 + 4);
-
-  // Left Cell (Mode)
-  doc.rect(margin, y, contentWidth / 2, row2Height);
   doc.setFont("helvetica", "normal");
-  doc.text(modeLines, margin + 2, y + 6);
+  doc.text("Cheque / Txn No. UPI", margin + 2, y + 5);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.transaction_id || "N/A", margin + 2, y + 10);
 
-  // Right Cell (Towards Project/Plot)
-  doc.rect(margin + contentWidth / 2, y, contentWidth / 2, row2Height);
-  doc.text(projectPlotLines, margin + contentWidth / 2 + 2, y + 6);
+  doc.setFont("helvetica", "normal");
+  doc.text("Date: ", col2X + 2, y + 5);
+  const dateLabelWidth = doc.getTextWidth("Date: ");
+  doc.setFont("helvetica", "bold");
+  const paymentDateStr = data.date || data.payment_date ? new Date(data.date || data.payment_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
+  doc.text(paymentDateStr, col2X + 2 + dateLabelWidth, y + 5);
 
+  doc.setFont("helvetica", "normal");
+  doc.text("Bank Name: ", col3X + 2, y + 5);
+  const bankLabelWidth = doc.getTextWidth("Bank Name: ");
+  doc.setFont("helvetica", "bold");
+  doc.text("SBI", col3X + 2 + bankLabelWidth, y + 5);
   y += row2Height;
 
-  // --- FOOTER & SIGNATURE ---
-  y += 20;
+  // Payment Details Table - Row 3
+  doc.rect(margin, y, contentWidth, 8);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text("Subject to Realization of Cheque", margin, y);
-
+  doc.text("Payment Mode: ", margin + 2, y + 5.5);
+  const modeLabelWidth = doc.getTextWidth("Payment Mode: ");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(10);
-  doc.text("Authorized Signatory", pageWidth - margin, y, { align: "right" });
+  doc.text((data.payment_mode || "UPI").toUpperCase(), margin + 2 + modeLabelWidth, y + 5.5);
+  y += 15;
+
+  // Contact Section
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.text("For Any Further Queries Contact:", pageWidth / 2, y, { align: "center" });
+  y += 7;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("Dholera Infra Development Pvt.Ltd", pageWidth / 2, y, { align: "center" });
+  y += 7;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
   
+  const contactText1 = "Tele: (+91) 8866909600 | Email: ";
+  const emailText = "info@didpl.com";
+  const contactText2 = " | www.didpl.com";
+  
+  const w1 = doc.getTextWidth(contactText1);
+  const wEmail = doc.getTextWidth(emailText);
+  const w2 = doc.getTextWidth(contactText2);
+  const totalW = w1 + wEmail + w2;
+  
+  let currentX = (pageWidth - totalW) / 2;
+  
+  doc.text(contactText1, currentX, y);
+  currentX += w1;
+  doc.setTextColor(0, 51, 153);
+  doc.text(emailText, currentX, y);
+  doc.setTextColor(0, 0, 0);
+  currentX += wEmail;
+  doc.text(contactText2, currentX, y);
+  
+  y += 12;
+
+  // Terms & Conditions
+  doc.line(margin, y, pageWidth - margin, y);
   y += 6;
-  doc.text("Dholera Infra Development Pvt. Ltd", pageWidth - margin, y, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(12);
+  doc.text("Terms & Conditions:", margin, y);
+  y += 6;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const terms = [
+    "1. THIS RECEIPT DOESN'T CREAT OR ESTABLISH ANY RIGHT OF TITLE INTEREST ON THE PLOT/PROPERTY.",
+    "2. ANY PAYMENT RECEIVED WILL BE TREATED AS NON REFUNDABLE DEPOSIT.",
+    "3. IN CASE OF DISPUTES, ALL RIGHT ARE RESERVED BY THE MANAGEMENT.",
+    "4. CHEQUE RETURN CHARGES SHALL BE LEVIED RS.500 PER CHEQUE PER TRANSACTION.",
+    "5. THE COMPANY RESERVES ALL RIGHT TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF",
+    "CANCELLATION/TERMINATION OF BOOKING.",
+    "6. ANY DISPUTE ARISES SHALL BE SUBJECT TO VADODARA JURISDICTION ONLY.",
+    "7. CHEQUES ARE SUBJECT TO REALISATION.",
+    "8. FINAL RECEIPT WILL BE ISSUED AFTER VERIFIED BY ACCOUNT DEPARTMENT.",
+    "9. THIS IS TEMPORARY ACKNOWLEDGEMENT TILL VERIFICATION.",
+    "10. THIS IS COMPUTER GENERATED RECEIPT REFLECTING ENTRY WITHOUT VERIFICATION, SIGNATURE IS NOT",
+    "REQUIRED."
+  ];
+
+  terms.forEach((term) => {
+    doc.text(term, margin, y);
+    y += 4.5;
+  });
+
+  y += 10;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.text("Thank You", pageWidth / 2, y, { align: "center" });
 
   const fileName = `Receipt_${(data.receipt_no || data.id || 'Payment')}.pdf`;
 
   if (preview) {
     return { doc, fileName };
-  } else {
-    doc.save(fileName);
-    return { doc, fileName };
   }
+
+  doc.save(fileName);
+  return { doc, fileName };
 };

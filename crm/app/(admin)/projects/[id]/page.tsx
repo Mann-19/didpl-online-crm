@@ -74,7 +74,7 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
         <ProjectNav projectId={projectId} />
 
         {/* High Level Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
           {/* Total Plots */}
           <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between">
             <div>
@@ -86,16 +86,42 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
             </div>
           </div>
 
-          {/* Sold */}
-          <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Confirmed</p>
-              <p className="text-2xl font-bold text-violet-700 mt-1">{project.soldPlots}</p>
+          <Link href={`/projects/${projectId}/clients?status=confirmed`}>
+            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-blue-600 transition-colors">Confirmed</p>
+                <p className="text-2xl font-bold text-blue-600 mt-1">{project.confirmedPlots}</p>
+              </div>
+              <div className={`p-3 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
             </div>
-            <div className={`p-3 rounded-md bg-violet-100 text-violet-600`}>
-              <CheckCircle2 className="w-5 h-5" />
+          </Link>
+
+          <Link href={`/projects/${projectId}/clients?status=sold`}>
+            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-red-300 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-red-600 transition-colors">Sold</p>
+                <p className="text-2xl font-bold text-red-600 mt-1">{project.soldPlots}</p>
+              </div>
+              <div className={`p-3 rounded-md bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
             </div>
-          </div>
+          </Link>
+
+          {/* Token Paid */}
+          <Link href={`/projects/${projectId}/clients?status=token_paid`}>
+            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-amber-600 transition-colors">Token Paid</p>
+                <p className="text-2xl font-bold text-amber-500 mt-1">{project.tokenPlots || 0}</p>
+              </div>
+              <div className={`p-3 rounded-md bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+            </div>
+          </Link>
 
           {/* Available */}
           <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between">
@@ -110,12 +136,12 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
 
           {/* Clients */}
           <Link href={`/projects/${projectId}/clients`}>
-            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group h-full">
+            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-violet-300 hover:shadow-md transition-all cursor-pointer group h-full">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-blue-600 transition-colors">Unique Clients</p>
-                <p className="text-2xl font-bold text-blue-600 mt-1">{project.clientCount}</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-violet-600 transition-colors">Unique Clients</p>
+                <p className="text-2xl font-bold text-violet-600 mt-1">{project.clientCount}</p>
               </div>
-              <div className={`p-3 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors`}>
+              <div className={`p-3 rounded-md bg-violet-100 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition-colors`}>
                 <Users className="w-5 h-5" />
               </div>
             </div>

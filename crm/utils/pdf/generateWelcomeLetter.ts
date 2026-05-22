@@ -8,7 +8,7 @@ export const generateWelcomeLetter = async (data: any, type: string = 'client', 
     // Load SVG Letterhead
     try {
         const img = new Image();
-        img.src = '/letterhead.jpeg'; // Ensure this image is in the public directory
+        img.src = '/Letterhead.png'; // Ensure this image is in the public directory
         await new Promise((resolve, reject) => {
             img.onload = resolve;
             img.onerror = () => {

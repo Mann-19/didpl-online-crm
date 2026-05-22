@@ -4,12 +4,14 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase,
-  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar, Clock, Trash2
+  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar, Clock, Trash2, Printer
 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
 import { updateClient, deleteClient, updateClientPayment, deleteClientPayment } from '../../people.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import { Toast, useToast } from '@/components/ui/Toast';
+import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
+import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 
 const InfoRow = ({ icon: Icon, label, value }: any) => (
   <div className="grid grid-cols-3 gap-4 items-start py-2.5 border-b border-gray-50 last:border-0">
@@ -40,6 +42,9 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
   });
   const [isPending, startTransition] = useTransition();
   const { toast, showToast, hideToast } = useToast();
+  
+  const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [pdfFileName, setPdfFileName] = useState('');
 
   const [editForm, setEditForm] = useState({
     name: client.name || '',
@@ -99,6 +104,23 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
 
   const handleCloseModal = () => {
     setShowEditModal(false);
+  };
+
+  const handlePrintWelcomeLetter = async () => {
+    try {
+      const payload = {
+        name: client.name,
+        client_name: client.name,
+      };
+      const result = await generateWelcomeLetter(payload, 'client', true);
+      if (result) {
+        setPdfDoc(result.doc);
+        setPdfFileName(result.fileName);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate Welcome Letter');
+    }
   };
 
   const handleDeleteClient = async () => {
@@ -178,6 +200,13 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
             >
               <Edit2 className="w-4 h-4" />
               {isEmployee ? 'Request Edit' : 'Edit Profile'}
+            </button>
+            <button
+              onClick={handlePrintWelcomeLetter}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm font-semibold text-blue-700 hover:bg-blue-100 shadow-sm"
+            >
+              <Printer className="w-4 h-4" />
+              Welcome Letter
             </button>
             {isMasterAdmin && (
               <button
@@ -588,6 +617,15 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
             </form>
           </div>
         </div>
+      )}
+      
+      {pdfDoc && (
+        <PDFPreviewModal
+          isOpen={!!pdfDoc}
+          pdfDoc={pdfDoc}
+          fileName={pdfFileName}
+          onClose={() => setPdfDoc(null)}
+        />
       )}
     </div>
   );

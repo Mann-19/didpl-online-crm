@@ -100,7 +100,7 @@ export default function ProjectsListClient({ initialProjects }: { initialProject
                   </div>
 
                   {/* Key Metrics */}
-                  <div className="grid grid-cols-3 gap-2 pb-4 border-b border-gray-200">
+                  <div className="grid grid-cols-5 gap-2 pb-4 border-b border-gray-200">
                     <div className="text-center">
                       <p className="text-xl md:text-2xl font-bold text-gray-900">
                         {project.totalPlots}
@@ -109,12 +109,24 @@ export default function ProjectsListClient({ initialProjects }: { initialProject
                     </div>
                     <div className="text-center">
                       <p className="text-xl md:text-2xl font-bold text-blue-600">
-                        {project.soldPlots}
+                        {project.confirmedPlots || 0}
+                      </p>
+                      <p className="text-[10px] md:text-xs text-gray-600">Confirmed</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl md:text-2xl font-bold text-red-600">
+                        {project.soldPlots || 0}
                       </p>
                       <p className="text-[10px] md:text-xs text-gray-600">Sold</p>
                     </div>
                     <div className="text-center">
-                      <p className="text-xl md:text-2xl font-bold text-orange-600">
+                      <p className="text-xl md:text-2xl font-bold text-amber-500">
+                        {project.tokenPlots || 0}
+                      </p>
+                      <p className="text-[10px] md:text-xs text-gray-600">Token Paid</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-xl md:text-2xl font-bold text-emerald-600">
                         {project.availablePlots}
                       </p>
                       <p className="text-[10px] md:text-xs text-gray-600">Available</p>

@@ -6,7 +6,7 @@ import { ArrowLeft, Search, Calendar, FolderHeart, CheckCircle2, TrendingUp, Dow
 import { formatNumber } from '@/utils/formatNumber';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
-import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
+import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
 
 export default function BookingClient({ data }: { data: any[] }) {
   const [search, setSearch] = useState('');
@@ -19,9 +19,16 @@ export default function BookingClient({ data }: { data: any[] }) {
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
 
-  const handlePrintWelcomeLetter = async (booking: any) => {
+  const handlePrintAllotmentLetter = async (booking: any) => {
     try {
-      const result = await generateWelcomeLetter(booking, 'client', true);
+      const payload = {
+        name: booking.client_name,
+        client_name: booking.client_name,
+        project_name: booking.project_name,
+        plot_number: booking.plot_number,
+        area_sqyd: booking.area_sqyd
+      };
+      const result = await generateAllotmentLetter(payload, true);
       if (result) {
         setPdfDoc(result.doc);
         setPdfFileName(result.fileName);
@@ -207,12 +214,11 @@ export default function BookingClient({ data }: { data: any[] }) {
                     </td>
                     <td className="px-4 py-4 text-center">
                       {r.status === 'confirmed' && (
-                        <button 
-                          onClick={() => handlePrintWelcomeLetter(r)}
-                          className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors"
-                          title="Print Welcome Letter"
+                        <button
+                          onClick={() => handlePrintAllotmentLetter(r)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded text-xs font-semibold"
                         >
-                          <Printer className="w-4 h-4 mx-auto" />
+                          <Printer className="w-3.5 h-3.5" /> Allotment Letter
                         </button>
                       )}
                     </td>

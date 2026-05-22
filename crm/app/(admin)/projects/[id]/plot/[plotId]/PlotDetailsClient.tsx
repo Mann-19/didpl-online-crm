@@ -16,7 +16,7 @@ import {
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
-import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
+import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
 import { Toast, useToast } from '@/components/ui/Toast';
 
 export default function PlotDetailsClient({
@@ -412,14 +412,16 @@ export default function PlotDetailsClient({
     setShowTransferModal(false);
   };
 
-  const handlePrintWelcomeLetter = async (booking: any) => {
+  const handlePrintAllotmentLetter = async (booking: any) => {
     try {
       const payload = {
-        name: booking.client?.name || 'Client',
-        client_name: booking.client?.name || 'Client',
-        // Pass any necessary data here for the template
+        name: booking.client?.name,
+        client_name: booking.client?.name,
+        project_name: plot.project?.name,
+        plot_number: plot.plot_number,
+        area_sqyd: plot.area_sqyd
       };
-      const result = await generateWelcomeLetter(payload, 'client', true);
+      const result = await generateAllotmentLetter(payload, true);
       if (result) {
         setPdfDoc(result.doc);
         setPdfFileName(result.fileName);
@@ -427,7 +429,7 @@ export default function PlotDetailsClient({
       }
     } catch (e) {
       console.error(e);
-      alert('Failed to generate Welcome Letter');
+      alert('Failed to generate Allotment Letter');
     }
   };
 
@@ -575,10 +577,10 @@ export default function PlotDetailsClient({
                         {/* Admin Actions */}
                         {isAdmin && isConfirmed && (
                            <button
-                             onClick={() => handlePrintWelcomeLetter(booking)}
+                             onClick={() => handlePrintAllotmentLetter(booking)}
                              className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors"
                            >
-                             <Printer className="w-3.5 h-3.5" /> Welcome Letter
+                             <Printer className="w-3.5 h-3.5" /> Print Allotment Letter
                            </button>
                         )}
                         {isMasterAdmin && (

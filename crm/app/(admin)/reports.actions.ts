@@ -49,7 +49,7 @@ export async function getRecoveryReport() {
       plot:plot_id ( plot_number, project:project_id ( name ) ),
       payments ( amount )
     `)
-    .in('status', ['pending', 'token_paid', 'confirmed'])
+    .in('status', ['pending', 'confirmed'])
     .order('booking_date', { ascending: false })
 
   if (error) { console.error('getRecoveryReport error:', error); return [] }
