@@ -37,10 +37,17 @@ export default async function ProjectClientsPage({
           <BackLink href="/projects" dirname="All Projects" accent="violet" />
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
+              <p className="text-sm font-semibold text-violet-600 mb-1 uppercase tracking-wider">{project.name}</p>
               <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">
-                {project.name} {status ? `- ${status === 'sold' ? 'Confirmed (Sold)' : status === 'token_paid' ? 'Token Paid' : status.charAt(0).toUpperCase() + status.slice(1)} Clients` : ''}
+                {status === 'sold' 
+                  ? 'Sold Clients' 
+                  : status === 'confirmed' 
+                    ? 'Confirmed Clients' 
+                    : status === 'token_paid' 
+                      ? 'Token Paid Clients' 
+                      : 'All Client Bookings'}
               </h1>
-              <p className="text-gray-500 mt-1">Client Bookings associated with this project: {clients.length}</p>
+              <p className="text-gray-500 mt-1">Total matching records: {clients.length}</p>
             </div>
           </div>
         </div>

@@ -12,39 +12,7 @@ function calculateProjectStats(project: any, plots: any[]) {
   let soldPlots = 0
   let tokenPlots = 0
   let unavailablePlots = 0 // Confirmed or Sold
-
-  plots.forEach((plot: any) => {
-    const activeBooking = plot.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending') || plot.bookings?.[0]
-    let isSold = false
-
-    if (activeBooking) {
-      const dealValue = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
-      const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
-      
-      if (dealValue > 0 && paid >= dealValue) {
-        isSold = true
-      }
-      
-      if (activeBooking.status === 'confirmed') {
-        confirmedPlots++
-      }
-    }
-
-    if (isSold) {
-      soldPlots++
-    }
-
-    if (plot.status === 'token_paid' || plot.status === 'partially_paid') {
-      tokenPlots++
-    }
-
-    if (activeBooking?.status === 'confirmed' || isSold) {
-      unavailablePlots++
-    }
-  })
-
-  const availablePlots = totalPlots - unavailablePlots
-
+  
   let totalRevenue = 0
   let amountReceived = 0
   let totalAreaSqYd = 0
@@ -53,26 +21,52 @@ function calculateProjectStats(project: any, plots: any[]) {
 
   plots.forEach((plot: any) => {
     totalAreaSqYd += Number(plot.area_sqyd) || 0
-    if (plot.status !== 'available') {
-      soldAreaSqYd += Number(plot.area_sqyd) || 0
-      if (plot.client_id) clients.add(plot.client_id)
-    }
 
-    // A plot could have multiple bookings if one was cancelled, we take the first or active one.
-    // Assuming the API returns the active booking or we just take the first one.
-    const activeBooking = plot.bookings?.[0]
+    // Filter to get all active bookings for this plot
+    const activeBookings = plot.bookings?.filter((b: any) => b.status === 'confirmed' || b.status === 'pending') || []
+    
+    // Fallback to the first booking if no active ones exist, just to check if it's the only one (for backward compatibility if needed)
+    const primaryBooking = activeBookings.length > 0 ? activeBookings[0] : plot.bookings?.[0]
+    
+    let isSold = false
+    let isConfirmed = false
 
-    if (activeBooking && plot.status !== 'available') {
-      const dealValue = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
-      totalRevenue += dealValue
-      
-      const payments = activeBooking.payments || []
-      const paid = payments.reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
-      amountReceived += paid
+    if (activeBookings.length > 0) {
+      activeBookings.forEach((activeBooking: any) => {
+        const dealValue = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
+        const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
+        
+        if (dealValue > 0 && paid >= dealValue) isSold = true
+        if (activeBooking.status === 'confirmed') isConfirmed = true
+        
+        totalRevenue += dealValue
+        amountReceived += paid
+      })
     } else {
       totalRevenue += Number(plot.price) || 0
     }
+
+    if (isConfirmed) confirmedPlots++
+    if (isSold) soldPlots++
+    
+    if (plot.status === 'token_paid' || plot.status === 'partially_paid') {
+      tokenPlots++
+    }
+
+    if (isConfirmed || isSold) {
+      unavailablePlots++
+      soldAreaSqYd += Number(plot.area_sqyd) || 0
+      if (plot.client_id) clients.add(plot.client_id)
+    } else if (plot.status !== 'available') {
+      // If it's not confirmed/sold but marked as something else not available
+      soldAreaSqYd += Number(plot.area_sqyd) || 0
+      if (plot.client_id) clients.add(plot.client_id)
+    }
   })
+
+  const availablePlots = totalPlots - unavailablePlots
+
+
 
   const pendingAmount = totalRevenue - amountReceived
   const areaPercentageSold = totalAreaSqYd > 0 ? (soldAreaSqYd / totalAreaSqYd) * 100 : 0
@@ -268,6 +262,7 @@ export async function getProjectClients(projectId: string, status?: string) {
     .from('plots')
     .select(`
       plot_number,
+      status,
       clients(*),
       bookings(
         id, status, total_amount, discount_amount,
