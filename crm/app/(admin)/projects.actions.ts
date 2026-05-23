@@ -266,11 +266,11 @@ export async function getProjectClients(projectId: string, status?: string) {
       clients(*),
       bookings(
         id, status, total_amount, discount_amount,
+        client:client_id(*),
         payments(amount)
       )
     `)
     .eq('project_id', projectId)
-    .not('client_id', 'is', null)
 
   // if (status) {
   //   query = query.eq('status', status)
@@ -285,27 +285,42 @@ export async function getProjectClients(projectId: string, status?: string) {
 
   const result: any[] = []
   data.forEach((p: any) => {
-    if (p.clients) {
-      const clientRecord = { ...p.clients, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number }
-      const activeBooking = p.bookings?.find((b: any) => b.status === 'confirmed' || b.status === 'pending') || p.bookings?.[0]
+    // Get all bookings for this plot that might have a client
+    const activeBookings = p.bookings?.filter((b: any) => b.status === 'confirmed' || b.status === 'pending') || []
+    
+    // If no active bookings, but the plot has a client linked directly (legacy/sync issue)
+    if (activeBookings.length === 0 && p.clients) {
+      let isTokenPaid = p.status === 'token_paid' || p.status === 'partially_paid'
+      let isSold = p.status === 'sold'
+      
+      let match = true
+      if (status === 'confirmed') match = false // No booking to be confirmed
+      if (status === 'sold') match = isSold
+      if (status === 'token_paid') match = isTokenPaid
+
+      if (match) {
+        result.push({ ...p.clients, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number })
+      }
+    }
+
+    // Process each active booking
+    activeBookings.forEach((b: any) => {
+      const clientData = b.client || p.clients
+      if (!clientData) return
+
+      const clientRecord = { ...clientData, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number }
+      
       let isSold = false
-      let isConfirmed = false
-      let isTokenPaid = false
+      let isConfirmed = b.status === 'confirmed'
+      let isTokenPaid = p.status === 'token_paid' || p.status === 'partially_paid'
 
-      if (activeBooking) {
-        const deal = (Number(activeBooking.total_amount) || 0) - (Number(activeBooking.discount_amount) || 0)
-        const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
-        
-        if (deal > 0 && paid >= deal) isSold = true
-        if (activeBooking.status === 'confirmed') isConfirmed = true
-        
-        clientRecord._dealTotal += deal
-        clientRecord._paidTotal += paid
-      }
-
-      if (p.status === 'token_paid' || p.status === 'partially_paid') {
-        isTokenPaid = true
-      }
+      const deal = (Number(b.total_amount) || 0) - (Number(b.discount_amount) || 0)
+      const paid = (b.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
+      
+      if (deal > 0 && paid >= deal) isSold = true
+      
+      clientRecord._dealTotal += deal
+      clientRecord._paidTotal += paid
 
       let match = true
       if (status === 'confirmed') match = isConfirmed
@@ -315,7 +330,7 @@ export async function getProjectClients(projectId: string, status?: string) {
       if (match) {
         result.push(clientRecord)
       }
-    }
+    })
   })
 
   return result
