@@ -11,6 +11,7 @@ function calculateProjectStats(project: any, plots: any[]) {
   let confirmedPlots = 0
   let soldPlots = 0
   let tokenPlots = 0
+  let cancelledPlots = 0
   let unavailablePlots = 0 // Confirmed or Sold
   
   let totalRevenue = 0
@@ -49,18 +50,30 @@ function calculateProjectStats(project: any, plots: any[]) {
     if (isConfirmed) confirmedPlots++
     if (isSold) soldPlots++
     
-    if (plot.status === 'token_paid' || plot.status === 'partially_paid') {
+    if ((plot.status === 'token_paid' || plot.status === 'partially_paid') && !isSold) {
       tokenPlots++
+    }
+
+    const cancelledBookings = plot.bookings?.filter((b: any) => b.status === 'cancelled') || []
+    if (cancelledBookings.length > 0) {
+      cancelledPlots += cancelledBookings.length
+    }
+
+    // 1. Gather clients from active bookings
+    const bookingClientIds = activeBookings.map((b: any) => b.client_id).filter(Boolean)
+    bookingClientIds.forEach((id: string) => clients.add(id))
+    
+    // 2. Gather from plot directly if plot is not available and no active bookings exist
+    if (plot.status !== 'available' && bookingClientIds.length === 0 && plot.client_id) {
+      clients.add(plot.client_id)
     }
 
     if (isConfirmed || isSold) {
       unavailablePlots++
       soldAreaSqYd += Number(plot.area_sqyd) || 0
-      if (plot.client_id) clients.add(plot.client_id)
     } else if (plot.status !== 'available') {
       // If it's not confirmed/sold but marked as something else not available
       soldAreaSqYd += Number(plot.area_sqyd) || 0
-      if (plot.client_id) clients.add(plot.client_id)
     }
   })
 
@@ -79,6 +92,7 @@ function calculateProjectStats(project: any, plots: any[]) {
     confirmedPlots,
     soldPlots,
     tokenPlots,
+    cancelledPlots,
     availablePlots,
     totalRevenue,
     amountReceived,
@@ -115,7 +129,7 @@ export async function getProjectsWithStats() {
     .select(`
       *,
       bookings (
-        id, total_amount, discount_amount, status,
+        id, total_amount, discount_amount, status, client_id,
         payments ( amount )
       )
     `)
@@ -159,7 +173,7 @@ export async function getProjectOverview(projectId: string) {
     .select(`
       *,
       bookings (
-        id, total_amount, discount_amount, status,
+        id, total_amount, discount_amount, status, client_id,
         payments ( amount )
       )
     `)
@@ -176,7 +190,7 @@ export async function getProjectOverview(projectId: string) {
   const stats = calculateProjectStats(project, activePlots)
   
   // Calculate status counts
-  const statusCounts = { available: 0, token: 0, partial: 0, sold: 0 }
+  const statusCounts = { available: 0, token: 0, partial: 0, sold: 0, cancelled: stats.cancelledPlots }
   activePlots?.forEach((plot: any) => {
     if (plot.status === 'token_paid' || plot.status === 'partially_paid') statusCounts.token++
     else if (plot.status === 'sold') statusCounts.sold++
@@ -203,7 +217,7 @@ export async function getProjectPlots(projectId: string) {
       *,
       clients:client_id ( name, phone ),
       bookings (
-        id, total_amount, discount_amount, status,
+        id, total_amount, discount_amount, status, client_id,
         payments ( amount )
       )
     `)
@@ -283,23 +297,37 @@ export async function getProjectClients(projectId: string, status?: string) {
     return []
   }
 
-  const result: any[] = []
+  const clientMap = new Map<string, any>()
+
   data.forEach((p: any) => {
     // Get all bookings for this plot that might have a client
-    const activeBookings = p.bookings?.filter((b: any) => b.status === 'confirmed' || b.status === 'pending') || []
+    const activeBookings = status === 'cancelled'
+      ? p.bookings?.filter((b: any) => b.status === 'cancelled') || []
+      : p.bookings?.filter((b: any) => b.status === 'confirmed' || b.status === 'pending') || []
     
     // If no active bookings, but the plot has a client linked directly (legacy/sync issue)
     if (activeBookings.length === 0 && p.clients) {
-      let isTokenPaid = p.status === 'token_paid' || p.status === 'partially_paid'
       let isSold = p.status === 'sold'
+      let isTokenPaid = (p.status === 'token_paid' || p.status === 'partially_paid') && !isSold
       
       let match = true
       if (status === 'confirmed') match = false // No booking to be confirmed
       if (status === 'sold') match = isSold
       if (status === 'token_paid') match = isTokenPaid
+      if (status === 'cancelled') match = false // No active cancelled booking without booking record
 
       if (match) {
-        result.push({ ...p.clients, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number })
+        const cId = p.clients.id
+        if (!clientMap.has(cId)) {
+          clientMap.set(cId, { client: p.clients, plots: [] })
+        }
+        clientMap.get(cId).plots.push({
+          _plotNumber: p.plot_number,
+          _dealTotal: 0,
+          _paidTotal: 0,
+          status: p.status,
+          booking_status: 'none'
+        })
       }
     }
 
@@ -308,30 +336,35 @@ export async function getProjectClients(projectId: string, status?: string) {
       const clientData = b.client || p.clients
       if (!clientData) return
 
-      const clientRecord = { ...clientData, _dealTotal: 0, _paidTotal: 0, _plotNumber: p.plot_number }
-      
-      let isSold = false
-      let isConfirmed = b.status === 'confirmed'
-      let isTokenPaid = p.status === 'token_paid' || p.status === 'partially_paid'
-
       const deal = (Number(b.total_amount) || 0) - (Number(b.discount_amount) || 0)
       const paid = (b.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
       
-      if (deal > 0 && paid >= deal) isSold = true
-      
-      clientRecord._dealTotal += deal
-      clientRecord._paidTotal += paid
+      let isFullyPaid = deal > 0 && paid >= deal
+      let isSold = isFullyPaid
+      let isConfirmed = b.status === 'confirmed'
+      let isTokenPaid = (p.status === 'token_paid' || p.status === 'partially_paid') && !isFullyPaid
 
       let match = true
       if (status === 'confirmed') match = isConfirmed
       if (status === 'sold') match = isSold
       if (status === 'token_paid') match = isTokenPaid
+      if (status === 'cancelled') match = b.status === 'cancelled'
 
       if (match) {
-        result.push(clientRecord)
+        const cId = clientData.id
+        if (!clientMap.has(cId)) {
+          clientMap.set(cId, { client: clientData, plots: [] })
+        }
+        clientMap.get(cId).plots.push({
+          _plotNumber: p.plot_number,
+          _dealTotal: deal,
+          _paidTotal: paid,
+          status: p.status,
+          booking_status: b.status
+        })
       }
     })
   })
 
-  return result
+  return Array.from(clientMap.values())
 }

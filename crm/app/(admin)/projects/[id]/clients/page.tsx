@@ -58,87 +58,106 @@ export default async function ProjectClientsPage({
         {/* Clients Grid */}
         <div className="mt-6">
           {clients.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {clients.map((client: any, index: number) => (
-                <div key={`${client.id}-${client._plotNumber || index}`} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
-                        {client.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-gray-900">{client.name}</h3>
-                        <p className="text-xs text-gray-500">{client.client_code || 'No Code'}</p>
-                      </div>
-                    </div>
-                    {client._plotNumber && (
-                      <div className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold border border-emerald-200 shadow-sm">
-                        Plot {client._plotNumber}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    {client.phone && (
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Phone className="w-4 h-4 text-gray-400" />
-                        <span>{client.phone}</span>
-                      </div>
-                    )}
-                    {(client.residential_city || client.residential_state) && (
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="w-4 h-4 text-gray-400" />
-                        <span>{[client.residential_city, client.residential_state].filter(Boolean).join(', ')}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-gray-100">
-                    {(() => {
-                      const deal = client._dealTotal || 0;
-                      const paid = client._paidTotal || 0;
-                      const balance = deal - paid;
-                      const progress = deal > 0 ? Math.min(100, (paid / deal) * 100) : 0;
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-end text-sm">
-                            <div>
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Plot Price</p>
-                              <p className="font-semibold text-gray-900">₹{formatNumber(deal)}</p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Amount Paid</p>
-                              <p className="font-semibold text-emerald-600">₹{formatNumber(paid)}</p>
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-1">
-                            <div className="flex justify-between text-xs mb-1">
-                              <span className="font-medium text-orange-600">Due: ₹{formatNumber(Math.max(0, balance))}</span>
-                              <span className="text-gray-500">{formatNumber(progress)}%</span>
-                            </div>
-                            <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                                style={{ width: `${progress}%` }}
-                              />
-                            </div>
+            <div className="space-y-4">
+              {clients.map((item: any, index: number) => {
+                const client = item.client;
+                const plots = item.plots;
+
+                return (
+                  <details key={client.id || index} className="group bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                    <summary className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg shrink-0">
+                          {client.name?.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900 text-lg">{client.name}</h3>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500 mt-1">
+                            <span>{client.client_code || 'No Code'}</span>
+                            {client.phone && (
+                              <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {client.phone}</span>
+                            )}
+                            {(client.residential_city || client.residential_state) && (
+                              <span className="flex items-center gap-1 hidden sm:flex">
+                                <MapPin className="w-3 h-3" /> 
+                                {[client.residential_city, client.residential_state].filter(Boolean).join(', ')}
+                              </span>
+                            )}
                           </div>
                         </div>
-                      );
-                    })()}
-                  </div>
-                  
-                  <div className="mt-4 pt-3 border-t border-gray-100 text-center">
-                    <Link
-                      href={`/clients/${client.id}`}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors inline-block w-full"
-                    >
-                      View Full Profile &rarr;
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                      </div>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <div className="bg-violet-100 text-violet-700 px-3 py-1 rounded-full text-xs font-bold border border-violet-200 shadow-sm">
+                          {plots.length} Plot{plots.length !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-gray-400 group-open:rotate-180 transition-transform duration-200">
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </summary>
+                    
+                    <div className="border-t border-gray-100 bg-gray-50/50">
+                      <div className="divide-y divide-gray-200">
+                        {plots.map((plot: any, idx: number) => {
+                          const deal = plot._dealTotal || 0;
+                          const paid = plot._paidTotal || 0;
+                          const balance = deal - paid;
+                          const progress = deal > 0 ? Math.min(100, (paid / deal) * 100) : 0;
+                          
+                          return (
+                            <div key={idx} className="p-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8 hover:bg-white transition-colors">
+                              <div className="w-full lg:w-1/4">
+                                <div className="inline-block bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold border border-emerald-200 mb-1">
+                                  Plot {plot._plotNumber}
+                                </div>
+                                <div className="text-[10px] uppercase font-bold text-gray-400 mt-1">
+                                  {plot.booking_status !== 'none' ? `Booking: ${plot.booking_status}` : `Status: ${plot.status}`}
+                                </div>
+                              </div>
+                              
+                              <div className="w-full lg:w-3/4 flex flex-col sm:flex-row gap-6 sm:items-center justify-between">
+                                <div className="flex gap-8 shrink-0">
+                                  <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Plot Price</p>
+                                    <p className="font-semibold text-gray-900">₹{formatNumber(deal)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Amount Paid</p>
+                                    <p className="font-semibold text-emerald-600">₹{formatNumber(paid)}</p>
+                                  </div>
+                                </div>
+                                
+                                <div className="w-full sm:max-w-xs">
+                                  <div className="flex justify-between text-xs mb-1.5">
+                                    <span className="font-medium text-orange-600">Due: ₹{formatNumber(Math.max(0, balance))}</span>
+                                    <span className="text-gray-500 font-medium">{formatNumber(progress)}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                    <div
+                                      className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                      style={{ width: `${progress}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                      <div className="p-3 border-t border-gray-200 bg-white text-center rounded-b-lg">
+                        <Link
+                          href={`/clients/${client.id}`}
+                          className="text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors inline-block"
+                        >
+                          View Full Profile &rarr;
+                        </Link>
+                      </div>
+                    </div>
+                  </details>
+                );
+              })}
             </div>
           ) : (
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">

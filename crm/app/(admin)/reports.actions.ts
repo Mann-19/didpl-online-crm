@@ -93,6 +93,7 @@ export async function getCommissionReport() {
       payments ( id, amount, payment_date, payment_mode, entity_type )
     `)
     .not('consultant_id', 'is', null)
+    .neq('status', 'cancelled')
     .order('booking_date', { ascending: false })
 
   if (error) { console.error('getCommissionReport error:', error); return [] }
@@ -140,6 +141,7 @@ export async function getBookingReport() {
       consultant:consultant_id ( name ),
       payments ( amount )
     `)
+    .neq('status', 'cancelled')
     .order('booking_date', { ascending: false })
 
   if (error) { console.error('getBookingReport error:', error); return [] }

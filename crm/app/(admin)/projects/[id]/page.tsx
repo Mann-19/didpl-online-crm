@@ -1,7 +1,7 @@
 import { getProjectOverview } from '../../projects.actions';
 import {
   MapPin, LayoutGrid, CheckCircle2, Circle, Users,
-  Wallet, TrendingUp, Activity, Edit
+  Wallet, TrendingUp, Activity, Edit, XCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import ProjectNav from '@/components/projects/ProjectNav';
@@ -44,7 +44,7 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
 
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 tracking-tight">{project.name}</h1>
+              <h1 className="text-xl md:text-3xl font-bold text-gray-900 tracking-tight">{project.name}</h1>
               <div className="flex flex-wrap items-center gap-2 mt-2 text-gray-500 text-sm">
                 <MapPin className="w-4 h-4 shrink-0" />
                 <span>{project.location || 'Location not specified'}</span>
@@ -74,75 +74,92 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
         <ProjectNav projectId={projectId} />
 
         {/* High Level Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
           {/* Total Plots */}
-          <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Lands</p>
-              <p className="text-2xl font-bold text-gray-900 mt-1">{project.totalPlots}</p>
+          <Link href={`/projects/${projectId}/list`}>
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-gray-300 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-gray-900 transition-colors">Total Lands</p>
+                <p className="text-xl font-bold text-gray-900 mt-1">{project.totalPlots}</p>
+              </div>
+              <div className={`p-2 rounded-md bg-gray-100 text-gray-600 group-hover:bg-gray-200 transition-colors`}>
+                <LayoutGrid className="w-4 h-4" />
+              </div>
             </div>
-            <div className={`p-3 rounded-md bg-gray-100 text-gray-600`}>
-              <LayoutGrid className="w-5 h-5" />
-            </div>
-          </div>
+          </Link>
 
           <Link href={`/projects/${projectId}/clients?status=confirmed`}>
-            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group h-full">
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-blue-300 hover:shadow-md transition-all cursor-pointer group h-full">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-blue-600 transition-colors">Confirmed</p>
-                <p className="text-2xl font-bold text-blue-600 mt-1">{project.confirmedPlots}</p>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-blue-600 transition-colors">Confirmed</p>
+                <p className="text-xl font-bold text-blue-600 mt-1">{project.confirmedPlots}</p>
               </div>
-              <div className={`p-3 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors`}>
-                <CheckCircle2 className="w-5 h-5" />
+              <div className={`p-2 rounded-md bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
           </Link>
 
           <Link href={`/projects/${projectId}/clients?status=sold`}>
-            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-red-300 hover:shadow-md transition-all cursor-pointer group h-full">
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-red-300 hover:shadow-md transition-all cursor-pointer group h-full">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-red-600 transition-colors">Sold</p>
-                <p className="text-2xl font-bold text-red-600 mt-1">{project.soldPlots}</p>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-red-600 transition-colors">Sold</p>
+                <p className="text-xl font-bold text-red-600 mt-1">{project.soldPlots}</p>
               </div>
-              <div className={`p-3 rounded-md bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors`}>
-                <CheckCircle2 className="w-5 h-5" />
+              <div className={`p-2 rounded-md bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
           </Link>
 
           {/* Token Paid */}
           <Link href={`/projects/${projectId}/clients?status=token_paid`}>
-            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group h-full">
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-amber-300 hover:shadow-md transition-all cursor-pointer group h-full">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-amber-600 transition-colors">Token Paid</p>
-                <p className="text-2xl font-bold text-amber-500 mt-1">{project.tokenPlots || 0}</p>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-amber-600 transition-colors">Token Paid</p>
+                <p className="text-xl font-bold text-amber-500 mt-1">{project.tokenPlots || 0}</p>
               </div>
-              <div className={`p-3 rounded-md bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors`}>
-                <CheckCircle2 className="w-5 h-5" />
+              <div className={`p-2 rounded-md bg-amber-100 text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors`}>
+                <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
           </Link>
 
           {/* Available */}
-          <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Available</p>
-              <p className="text-2xl font-bold text-emerald-600 mt-1">{project.availablePlots}</p>
+          <Link href={`/projects/${projectId}/list?status=available`}>
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-emerald-300 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-emerald-600 transition-colors">Available</p>
+                <p className="text-xl font-bold text-emerald-600 mt-1">{project.availablePlots}</p>
+              </div>
+              <div className={`p-2 rounded-md bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors`}>
+                <Circle className="w-4 h-4" />
+              </div>
             </div>
-            <div className={`p-3 rounded-md bg-emerald-100 text-emerald-600`}>
-              <Circle className="w-5 h-5" />
+          </Link>
+
+          {/* Cancelled */}
+          <Link href={`/projects/${projectId}/clients?status=cancelled`}>
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-gray-400 hover:shadow-md transition-all cursor-pointer group h-full">
+              <div>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-gray-700 transition-colors">Cancelled</p>
+                <p className="text-xl font-bold text-gray-600 mt-1">{project.cancelledPlots || 0}</p>
+              </div>
+              <div className={`p-2 rounded-md bg-gray-100 text-gray-600 group-hover:bg-gray-600 group-hover:text-white transition-colors`}>
+                <XCircle className="w-4 h-4" />
+              </div>
             </div>
-          </div>
+          </Link>
 
           {/* Clients */}
           <Link href={`/projects/${projectId}/clients`}>
-            <div className="bg-white p-5 rounded-md border border-gray-200 flex items-center justify-between hover:border-violet-300 hover:shadow-md transition-all cursor-pointer group h-full">
+            <div className="bg-white p-2 rounded-md border border-gray-200 flex items-center justify-between hover:border-violet-300 hover:shadow-md transition-all cursor-pointer group h-full">
               <div>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide group-hover:text-violet-600 transition-colors">Unique Clients</p>
-                <p className="text-2xl font-bold text-violet-600 mt-1">{project.clientCount}</p>
+                <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide group-hover:text-violet-600 transition-colors">Unique Clients</p>
+                <p className="text-xl font-bold text-violet-600 mt-1">{project.clientCount}</p>
               </div>
-              <div className={`p-3 rounded-md bg-violet-100 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition-colors`}>
-                <Users className="w-5 h-5" />
+              <div className={`p-2 rounded-md bg-violet-100 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition-colors`}>
+                <Users className="w-4 h-4" />
               </div>
             </div>
           </Link>
@@ -155,7 +172,7 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
             {/* Financial Overview */}
             <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-4 md:px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                <Wallet className="w-5 h-5 text-gray-400" />
+                <Wallet className="w-4 h-4 text-gray-400" />
                 <h2 className="text-base font-bold text-gray-900">Financial Overview</h2>
               </div>
 
@@ -164,23 +181,23 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Value</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Total Value</p>
                       <p className="text-xl font-bold text-gray-900">{formatCurrency(project.totalRevenue)}</p>
-                      <p className="text-xs text-gray-400">Project Potential</p>
+                      <p className="text-[10px] text-gray-400">Project Potential</p>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Collected</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Collected</p>
                       <p className="text-xl font-bold text-emerald-600">{formatCurrency(project.amountReceived)}</p>
-                      <p className="text-xs font-medium text-emerald-600 bg-emerald-50 inline-block px-1.5 py-0.5 rounded">
+                      <p className="text-[10px] font-medium text-emerald-600 bg-emerald-50 inline-block px-1.5 py-0.5 rounded">
                         {formatNumber(project.collectionRate)}% Recovered
                       </p>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pending</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Pending</p>
                       <p className="text-xl font-bold text-rose-600">{formatCurrency(project.pendingAmount)}</p>
-                      <p className="text-xs font-medium text-rose-600 bg-rose-50 inline-block px-1.5 py-0.5 rounded">
+                      <p className="text-[10px] font-medium text-rose-600 bg-rose-50 inline-block px-1.5 py-0.5 rounded">
                         {formatNumber(project.pendingPercentage)}% Balance
                       </p>
                     </div>
@@ -207,32 +224,32 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Area</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Total Area</p>
                       <p className="text-xl font-bold text-gray-900">
                         {formatNumber(project.totalAreaSqYd)}
                         <span className="text-sm font-normal text-gray-500 ml-1">sq.yd</span>
                       </p>
-                      <p className="text-xs text-gray-400">Total Land Area</p>
+                      <p className="text-[10px] text-gray-400">Total Land Area</p>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sold Area</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Sold Area</p>
                       <p className="text-xl font-bold text-blue-600">
                         {formatNumber(project.soldAreaSqYd)}
                         <span className="text-sm font-normal text-gray-500 ml-1">sq.yd</span>
                       </p>
-                      <p className="text-xs font-medium text-blue-600 bg-blue-50 inline-block px-1.5 py-0.5 rounded">
+                      <p className="text-[10px] font-medium text-blue-600 bg-blue-50 inline-block px-1.5 py-0.5 rounded">
                         {formatNumber(project.areaPercentageSold)}% Sold
                       </p>
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Remaining</p>
+                      <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Remaining</p>
                       <p className="text-xl font-bold text-orange-600">
                         {formatNumber(project.remainingAreaSqYd)}
                         <span className="text-sm font-normal text-gray-500 ml-1">sq.yd</span>
                       </p>
-                      <p className="text-xs text-gray-400">Available</p>
+                      <p className="text-[10px] text-gray-400">Available</p>
                     </div>
                   </div>
 
@@ -259,13 +276,13 @@ export default async function ProjectOverviewPage({ params }: { params: Promise<
             {/* Inventory Status */}
             <div className="bg-white rounded-md border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-                <LayoutGrid className="w-5 h-5 text-gray-400" />
+                <LayoutGrid className="w-4 h-4 text-gray-400" />
                 <h2 className="text-base font-bold text-gray-900">Inventory Status</h2>
               </div>
 
               <div className="p-4 space-y-2">
                 {statusCards.map((item, idx) => (
-                  <div key={idx} className={`flex items-center justify-between p-3 rounded-md transition-colors ${item.bgSoft}`}>
+                  <div key={idx} className={`flex items-center justify-between p-2 rounded-md transition-colors ${item.bgSoft}`}>
                     <div className="flex items-center gap-3">
                       <div className={`w-2.5 h-2.5 rounded-full ${item.color}`}></div>
                       <span className={`text-sm font-medium ${item.text}`}>{item.label}</span>
