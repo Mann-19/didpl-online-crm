@@ -40,7 +40,7 @@ export default function MyPortalPage() {
         client_state: clientProfile.residential_state,
         client_pincode: clientProfile.residential_pincode,
         amount: Number(payment.amount),
-        transaction_id: payment.transaction_id,
+        transaction_id: payment.transaction_id || payment.description || "N/A",
         payment_mode: payment.payment_mode
       };
 

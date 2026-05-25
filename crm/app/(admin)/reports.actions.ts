@@ -181,7 +181,7 @@ export async function getReceiptReport() {
     .select(`
       id, receipt_no, amount, payment_date, payment_mode, description, transaction_id,
       booking:booking_id (
-        client:client_id ( name, client_code ),
+        client:client_id ( name, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
         plot:plot_id ( plot_number, project:project_id ( name ) )
       )
     `)
@@ -197,8 +197,13 @@ export async function getReceiptReport() {
     payment_date: p.payment_date,
     payment_mode: p.payment_mode,
     description: p.description,
-    transaction_id: p.transaction_id,
+    transaction_id: p.transaction_id || p.description || 'N/A',
     client_name: p.booking?.client?.name || '—',
+    gender: p.booking?.client?.gender || null,
+    residential_address: p.booking?.client?.residential_address || null,
+    client_city: p.booking?.client?.residential_city || null,
+    client_state: p.booking?.client?.residential_state || null,
+    client_pincode: p.booking?.client?.residential_pincode || null,
     client_code: p.booking?.client?.client_code || '',
     plot_number: p.booking?.plot?.plot_number || '?',
     project_name: p.booking?.plot?.project?.name || '?',

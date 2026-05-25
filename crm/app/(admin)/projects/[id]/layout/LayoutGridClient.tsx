@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import ProjectNav from "@/components/projects/ProjectNav";
 import { getLayoutRenderer } from "./renderers";
 import BackLink from "@/components/ui/BackLink";
-import { DH3_ACTIVE_PLOTS } from "../../../../project-utils";
+import { DH3_ACTIVE_PLOTS, AEROTOWN_RESIDENCY_ACTIVE_PLOTS } from "../../../../project-utils";
 
 export default function LayoutGridClient({ project, plots }: { project: any, plots: any[] }) {
   const router = useRouter();
@@ -63,9 +63,14 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
     function placePlot(num: any, row: any, col: any, data: any, rowSpan = 1, colSpan = 1) {
       const el = document.createElement("div");
       
-      // For Dholera Homes 3, plots not in the active set are shown as disabled
+      // For Dholera Homes 3 and AeroTown Residency, plots not in the active set are shown as disabled
       const isDH3 = project?.name === 'Dholera Homes 3';
-      const isDisabled = isDH3 && !DH3_ACTIVE_PLOTS.has(parseInt(String(num), 10));
+      const isDisabledDH3 = isDH3 && !DH3_ACTIVE_PLOTS.has(parseInt(String(num), 10));
+
+      const isAerotownResidency = project?.name?.toLowerCase().includes('aerotown residency');
+      const isDisabledAerotown = isAerotownResidency && !AEROTOWN_RESIDENCY_ACTIVE_PLOTS.has(parseInt(String(num), 10));
+
+      const isDisabled = isDisabledDH3 || isDisabledAerotown;
 
       if (isDisabled) {
         el.className = "plot status-disabled";
@@ -211,7 +216,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-yellow-400 bg-yellow-50"></div><span className="text-xs font-medium text-gray-600">Token</span></div>
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-orange-400 bg-orange-50"></div><span className="text-xs font-medium text-gray-600">Partial</span></div>
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-rose-500 bg-rose-50"></div><span className="text-xs font-medium text-gray-600">Sold</span></div>
-          {project.name === 'Dholera Homes 3' && (
+          {(project.name === 'Dholera Homes 3' || project.name?.toLowerCase().includes('aerotown residency')) && (
             <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-slate-300 bg-slate-100"></div><span className="text-xs font-medium text-gray-600">Restricted</span></div>
           )}
         </div>

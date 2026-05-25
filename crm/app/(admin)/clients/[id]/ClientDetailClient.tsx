@@ -600,8 +600,16 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                   </select>
                 </div>
               </div>
+              {editPaymentForm.payment_mode !== 'Cash' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
+                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPaymentForm.transaction_id}
+                    onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description / Transaction ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
                   value={editPaymentForm.description}
                   onChange={e => setEditPaymentForm({ ...editPaymentForm, description: e.target.value })} />

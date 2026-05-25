@@ -92,7 +92,7 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   y += 8;
 
   // Address Row
-  const addressText = data.client_address || 'N/A';
+  const addressText = data.residential_address || 'N/A';
   const locationParts = [];
   if (data.client_city) locationParts.push(data.client_city);
   if (data.client_state) locationParts.push(data.client_state);

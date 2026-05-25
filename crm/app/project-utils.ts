@@ -7,15 +7,30 @@ export const DH3_ACTIVE_PLOTS = new Set([
   255, 266, 267, 268, 269, 270, 273, 283, 294,
 ]);
 
+// AeroTown Residency: Only these 42 plots are active
+export const AEROTOWN_RESIDENCY_ACTIVE_PLOTS = new Set([
+  8, 11, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92,
+  93, 94, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107,
+  108, 109, 110, 119, 120, 121, 122, 123, 124, 125, 126, 127
+]);
 /**
- * If the project is "Dholera Homes 3", only return the 62 active plots.
+ * If the project is "Dholera Homes 3" or "AeroTown Residency", only return the active plots.
  * For all other projects, return all plots unchanged.
  */
 export function filterActivePlots(projectName: string, plots: any[]): any[] {
-  if (projectName === 'Dholera Homes 3') {
+  const pName = projectName?.toLowerCase() || '';
+
+  if (pName.includes('dholera homes 3')) {
     return (plots || []).filter((p: any) => 
       p && p.plot_number && DH3_ACTIVE_PLOTS.has(parseInt(String(p.plot_number), 10))
     );
   }
+
+  if (pName.includes('aerotown residency')) {
+    return (plots || []).filter((p: any) => 
+      p && p.plot_number && AEROTOWN_RESIDENCY_ACTIVE_PLOTS.has(parseInt(String(p.plot_number), 10))
+    );
+  }
+
   return plots || [];
 }

@@ -878,8 +878,15 @@ export default function PlotDetailsClient({
                   <option>NEFT/IMPS/RTGS</option>
                 </select>
               </div>
+              {paymentForm.mode !== 'Cash' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
+                  <input type="text" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
+                    value={paymentForm.transaction_id} onChange={e => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })} />
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description / Transaction ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input type="text" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
                   value={paymentForm.description} onChange={e => setPaymentForm({ ...paymentForm, description: e.target.value })} />
               </div>
@@ -1062,8 +1069,16 @@ export default function PlotDetailsClient({
                   </select>
                 </div>
               </div>
+              {editPaymentForm.payment_mode !== 'Cash' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
+                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                    value={editPaymentForm.transaction_id}
+                    onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description / Transaction ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
                   value={editPaymentForm.description}
                   onChange={e => setEditPaymentForm({ ...editPaymentForm, description: e.target.value })} />

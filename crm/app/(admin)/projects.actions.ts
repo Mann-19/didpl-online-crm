@@ -8,6 +8,7 @@ import { filterActivePlots } from '../project-utils'
 function calculateProjectStats(project: any, plots: any[]) {
   const totalPlots = plots.length
   
+
   let confirmedPlots = 0
   let soldPlots = 0
   let tokenPlots = 0
@@ -15,6 +16,7 @@ function calculateProjectStats(project: any, plots: any[]) {
   let unavailablePlots = 0 // Confirmed or Sold
   
   let totalRevenue = 0
+  let totalListPrice = 0
   let amountReceived = 0
   let totalAreaSqYd = 0
   let soldAreaSqYd = 0
@@ -22,6 +24,7 @@ function calculateProjectStats(project: any, plots: any[]) {
 
   plots.forEach((plot: any) => {
     totalAreaSqYd += Number(plot.area_sqyd) || 0
+    totalListPrice += Number(plot.price) || 0
 
     // Filter to get all active bookings for this plot
     const activeBookings = plot.bookings?.filter((b: any) => b.status === 'confirmed' || b.status === 'pending') || []
@@ -31,6 +34,8 @@ function calculateProjectStats(project: any, plots: any[]) {
     
     let isSold = false
     let isConfirmed = false
+    let hasConfirmedBooking = false
+    let plotRevenue = 0
 
     if (activeBookings.length > 0) {
       activeBookings.forEach((activeBooking: any) => {
@@ -38,14 +43,21 @@ function calculateProjectStats(project: any, plots: any[]) {
         const paid = (activeBooking.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
         
         if (dealValue > 0 && paid >= dealValue) isSold = true
-        if (activeBooking.status === 'confirmed') isConfirmed = true
+        if (activeBooking.status === 'confirmed') {
+          isConfirmed = true
+          hasConfirmedBooking = true
+          plotRevenue += dealValue
+        }
         
-        totalRevenue += dealValue
         amountReceived += paid
       })
-    } else {
-      totalRevenue += Number(plot.price) || 0
     }
+    
+    if (!hasConfirmedBooking) {
+      plotRevenue += Number(plot.price) || 0
+    }
+
+    totalRevenue += plotRevenue
 
     if (isConfirmed) confirmedPlots++
     if (isSold) soldPlots++
@@ -94,6 +106,7 @@ function calculateProjectStats(project: any, plots: any[]) {
     tokenPlots,
     cancelledPlots,
     availablePlots,
+    totalListPrice,
     totalRevenue,
     amountReceived,
     pendingAmount,

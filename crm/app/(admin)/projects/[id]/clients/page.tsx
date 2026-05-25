@@ -104,7 +104,8 @@ export default async function ProjectClientsPage({
                           const deal = plot._dealTotal || 0;
                           const paid = plot._paidTotal || 0;
                           const balance = deal - paid;
-                          const progress = deal > 0 ? Math.min(100, (paid / deal) * 100) : 0;
+                          const actualProgress = deal > 0 ? (paid / deal) * 100 : 0;
+                          const progressWidth = Math.min(100, actualProgress);
                           
                           return (
                             <div key={idx} className="p-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:gap-8 hover:bg-white transition-colors">
@@ -131,13 +132,15 @@ export default async function ProjectClientsPage({
                                 
                                 <div className="w-full sm:max-w-xs">
                                   <div className="flex justify-between text-xs mb-1.5">
-                                    <span className="font-medium text-orange-600">Due: ₹{formatNumber(Math.max(0, balance))}</span>
-                                    <span className="text-gray-500 font-medium">{formatNumber(progress)}%</span>
+                                    <span className={`font-medium ${balance < 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                                      {balance < 0 ? `Overpaid: ₹${formatNumber(Math.abs(balance))}` : `Due: ₹${formatNumber(balance)}`}
+                                    </span>
+                                    <span className="text-gray-500 font-medium">{formatNumber(actualProgress)}%</span>
                                   </div>
                                   <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                                     <div
                                       className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                                      style={{ width: `${progress}%` }}
+                                      style={{ width: `${progressWidth}%` }}
                                     />
                                   </div>
                                 </div>
