@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  ArrowLeft, User, Plus, Ruler, Banknote, Trophy,
+  ArrowLeft, User, Users, Plus, Ruler, Banknote, Trophy,
   CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer, Clock,
-  Edit2, Trash2
+  Edit2, Trash2, UserPlus, GitMerge
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
@@ -12,7 +12,8 @@ import {
   createBooking, addPayment, confirmBooking,
   cancelBooking, updateBookingDiscount, revertBooking,
   updatePlot, updateBooking, updatePayment, deletePayment,
-  transferBooking, getAvailablePlots
+  transferBooking, getTransferablePlotsForClient,
+  addPartnerToBooking, removePartnerFromBooking, mergeTransferIntoPartnership
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -43,6 +44,15 @@ export default function PlotDetailsClient({
   const [transferBookingId, setTransferBookingId] = useState<string | null>(null);
   const [availablePlots, setAvailablePlots] = useState<any[]>([]);
   const [selectedNewPlotId, setSelectedNewPlotId] = useState('');
+
+  // Partner modal state
+  const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
+  const [partnerBookingId, setPartnerBookingId] = useState<string | null>(null);
+  const [partnerSearch, setPartnerSearch] = useState('');
+  const [selectedPartnerId, setSelectedPartnerId] = useState('');
+  // Merge transfer state
+  const [isMergeTransfer, setIsMergeTransfer] = useState(false);
+  const [mergeTargetBookingId, setMergeTargetBookingId] = useState<string | null>(null);
 
   const [isPending, startTransition] = React.useTransition();
   const { toast, showToast, hideToast } = useToast();
@@ -148,9 +158,12 @@ export default function PlotDetailsClient({
   };
 
   const openTransferModal = async (bookingId: string) => {
+    const booking = bookings.find((b: any) => b.id === bookingId);
     setTransferBookingId(bookingId);
     setSelectedNewPlotId('');
-    const plots = await getAvailablePlots(projectId);
+    setIsMergeTransfer(false);
+    setMergeTargetBookingId(null);
+    const plots = await getTransferablePlotsForClient(projectId, booking?.client_id || '');
     setAvailablePlots(plots);
     setShowTransferModal(true);
   };
@@ -159,8 +172,23 @@ export default function PlotDetailsClient({
     e.preventDefault();
     if (!transferBookingId || !selectedNewPlotId) return;
 
+    const selectedPlot = availablePlots.find((p: any) => p.id === selectedNewPlotId);
+    const isPartnershipMerge = selectedPlot?.isPartnership;
+
     startTransition(async () => {
-      if (isEmployee) {
+      if (isPartnershipMerge) {
+        // Find the target booking on the selected partnership plot
+        // We need to fetch the booking id for that plot; we use mergeTargetBookingId if set
+        if (!mergeTargetBookingId) { showToast('Could not find target booking', 'error'); return; }
+        const result = await mergeTransferIntoPartnership(transferBookingId, mergeTargetBookingId);
+        if (result.success) {
+          showToast('Merged into partnership booking successfully', 'success');
+          setShowTransferModal(false);
+          setTimeout(reload, 800);
+        } else {
+          showToast(result.error || 'Failed', 'error');
+        }
+      } else if (isEmployee) {
         const booking = bookings.find((b: any) => b.id === transferBookingId);
         const newPlot = availablePlots.find((p: any) => p.id === selectedNewPlotId);
         const result = await submitChangeRequest({
@@ -185,6 +213,35 @@ export default function PlotDetailsClient({
         } else {
           showToast(result.error || 'Failed', 'error');
         }
+      }
+    });
+  };
+
+  // Add Partner handler
+  const handleAddPartner = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!partnerBookingId || !selectedPartnerId) { alert('Select a partner client'); return; }
+    startTransition(async () => {
+      const result = await addPartnerToBooking(partnerBookingId, selectedPartnerId);
+      if (result.success) {
+        showToast('Partner added successfully', 'success');
+        setShowAddPartnerModal(false);
+        setTimeout(reload, 800);
+      } else {
+        showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const handleRemovePartner = (bookingId: string) => {
+    if (!confirm('Remove this partner from the booking?')) return;
+    startTransition(async () => {
+      const result = await removePartnerFromBooking(bookingId);
+      if (result.success) {
+        showToast('Partner removed', 'success');
+        setTimeout(reload, 800);
+      } else {
+        showToast(result.error || 'Failed', 'error');
       }
     });
   };
@@ -410,6 +467,7 @@ export default function PlotDetailsClient({
     setShowPaymentModal(false);
     setShowDiscountModal(false);
     setShowTransferModal(false);
+    setShowAddPartnerModal(false);
   };
 
   const handlePrintAllotmentLetter = async (booking: any) => {
@@ -417,6 +475,7 @@ export default function PlotDetailsClient({
       const payload = {
         name: booking.client?.name,
         client_name: booking.client?.name,
+        partner_name: booking.partner?.name || null,
         project_name: plot.project?.name,
         plot_number: plot.plot_number,
         area_sqyd: plot.area_sqyd
@@ -558,7 +617,15 @@ export default function PlotDetailsClient({
                           {isConfirmed ? <Trophy className="w-6 h-6" /> : (booking.client?.name?.charAt(0) || 'C')}
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-gray-900">{booking.client?.name || 'Unknown Client'}</h3>
+                          <h3 className="text-lg font-bold text-gray-900">
+                            {booking.client?.name || 'Unknown Client'}
+                            {booking.partner?.name && (
+                              <span className="text-gray-400 font-normal text-base"> & </span>
+                            )}
+                            {booking.partner?.name && (
+                              <span className="text-violet-700">{booking.partner.name}</span>
+                            )}
+                          </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <span>{booking.client?.phone || 'No Phone'}</span>
                             {booking.consultant?.name && (
@@ -575,6 +642,23 @@ export default function PlotDetailsClient({
                           Booking Status: {booking.status}
                         </span>
                         {/* Admin Actions */}
+                        {/* Add/Remove Partner button */}
+                        {(isAdmin || isEmployee) && !booking.partner && (
+                          <button
+                            onClick={() => { setPartnerBookingId(booking.id); setPartnerSearch(''); setSelectedPartnerId(''); setShowAddPartnerModal(true); }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
+                          >
+                            <UserPlus className="w-3.5 h-3.5" /> Add Partner
+                          </button>
+                        )}
+                        {(isAdmin || isEmployee) && booking.partner && (
+                          <button
+                            onClick={() => handleRemovePartner(booking.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> Remove Partner
+                          </button>
+                        )}
                         {isAdmin && isConfirmed && (
                            <button
                              onClick={() => handlePrintAllotmentLetter(booking)}
@@ -695,12 +779,13 @@ export default function PlotDetailsClient({
                         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                           <table className="w-full text-xs">
                             <thead className="bg-gray-50 border-b">
-                              <tr>
-                                <th className="px-3 py-2 text-left text-gray-600 font-semibold">Date</th>
-                                <th className="px-3 py-2 text-left text-gray-600 font-semibold">Mode</th>
-                                <th className="px-3 py-2 text-right text-gray-600 font-semibold">Amount</th>
-                                {isMasterAdmin && <th className="px-3 py-2"></th>}
-                              </tr>
+                                <tr>
+                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Date</th>
+                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Mode</th>
+                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">By</th>
+                                  <th className="px-3 py-2 text-right text-gray-600 font-semibold">Amount</th>
+                                  {isMasterAdmin && <th className="px-3 py-2"></th>}
+                                </tr>
                             </thead>
                             <tbody>
                               {(booking.payments || []).map((p: any) => (
@@ -709,6 +794,14 @@ export default function PlotDetailsClient({
                                     {new Date(p.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                                   </td>
                                   <td className="px-3 py-2 text-gray-700">{p.payment_mode}</td>
+                                  <td className="px-3 py-2 text-gray-500 text-xs">
+                                    {p.entity_id === booking.client_id
+                                      ? (booking.client?.name || '—')
+                                      : p.entity_id === booking.partner_client_id
+                                        ? <span className="text-violet-600 font-semibold">{booking.partner?.name || 'Partner'}</span>
+                                        : '—'
+                                    }
+                                  </td>
                                   <td className="px-3 py-2 text-right font-bold text-gray-900">₹{formatNumber(p.amount)}</td>
                                   {isMasterAdmin && (
                                     <td className="px-3 py-2">
@@ -743,7 +836,7 @@ export default function PlotDetailsClient({
                                 </tr>
                               ))}
                               {(booking.payments || []).length === 0 && (
-                                <tr><td colSpan={isMasterAdmin ? 4 : 3} className="p-3 text-center text-gray-400">No payments yet</td></tr>
+                                <tr><td colSpan={isMasterAdmin ? 5 : 4} className="p-3 text-center text-gray-400">No payments yet</td></tr>
                               )}
                             </tbody>
                           </table>
@@ -856,6 +949,22 @@ export default function PlotDetailsClient({
               <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleAddPayment} className="space-y-4">
+              {/* Payment By — only shown when booking has a partner */}
+              {(() => {
+                const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
+                return activeBooking?.partner ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment By</label>
+                    <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
+                      value={activeClientId || ''}
+                      onChange={e => setActiveClientId(e.target.value)}
+                    >
+                      <option value={activeBooking.client_id}>{activeBooking.client?.name} (Primary)</option>
+                      <option value={activeBooking.partner_client_id}>{activeBooking.partner.name} (Partner)</option>
+                    </select>
+                  </div>
+                ) : null;
+              })()}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
@@ -1096,6 +1205,65 @@ export default function PlotDetailsClient({
         </div>
       )}
 
+      {/* ===== ADD PARTNER MODAL ===== */}
+      {showAddPartnerModal && (() => {
+        const filteredPartnerClients = clients.filter((c: any) =>
+          c.id !== bookings.find((b: any) => b.id === partnerBookingId)?.client_id &&
+          (c.name?.toLowerCase().includes(partnerSearch.toLowerCase()) ||
+           c.client_code?.toLowerCase().includes(partnerSearch.toLowerCase()))
+        );
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Add Partnership Client</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">This client will share this booking with the primary client</p>
+                </div>
+                <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
+              </div>
+              <form onSubmit={handleAddPartner} className="flex flex-col gap-4 overflow-y-auto">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Search Client</label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name or code..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                      value={partnerSearch}
+                      onChange={e => setPartnerSearch(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-2 border border-gray-200 rounded-lg max-h-52 overflow-y-auto">
+                    {filteredPartnerClients.slice(0, 20).map((c: any) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setSelectedPartnerId(c.id)}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-violet-50 transition-colors ${selectedPartnerId === c.id ? 'bg-violet-100 text-violet-700 font-semibold' : 'text-gray-700'}`}
+                      >
+                        <span>{c.name}</span>
+                        <span className="text-xs text-gray-400">{c.client_code}</span>
+                      </button>
+                    ))}
+                    {filteredPartnerClients.length === 0 && <p className="p-3 text-sm text-gray-400 text-center">No clients found</p>}
+                  </div>
+                </div>
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button type="button" onClick={handleCloseModal}
+                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                  <button type="submit" disabled={!selectedPartnerId || isPending}
+                    className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
+                    {isPending ? 'Adding...' : 'Add as Partner'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* PDF PREVIEW MODAL */}
       <PDFPreviewModal
         isOpen={showPdfModal}
@@ -1122,13 +1290,33 @@ export default function PlotDetailsClient({
                 <select
                   className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
                   value={selectedNewPlotId}
-                  onChange={(e) => setSelectedNewPlotId(e.target.value)}
+                  onChange={async (e) => {
+                    const newVal = e.target.value;
+                    setSelectedNewPlotId(newVal);
+                    const selected = availablePlots.find((p: any) => p.id === newVal);
+                    if (selected?.isPartnership && transferBookingId) {
+                      const booking = bookings.find((b: any) => b.id === transferBookingId);
+                      // Fetch the target booking id on that partnership plot for this client
+                      const { createClient } = await import('@/utils/supabase/client');
+                      const supabase = createClient();
+                      const { data: targetBooking } = await supabase
+                        .from('bookings')
+                        .select('id')
+                        .eq('plot_id', newVal)
+                        .eq('partner_client_id', booking?.client_id || '')
+                        .in('status', ['pending', 'confirmed'])
+                        .single();
+                      setMergeTargetBookingId(targetBooking?.id || null);
+                    } else {
+                      setMergeTargetBookingId(null);
+                    }
+                  }}
                   required
                 >
                   <option value="" disabled>Select a plot...</option>
                   {availablePlots.map((p: any) => (
                     <option key={p.id} value={p.id}>
-                      Plot {p.plot_number} ({p.area_sqyd} sq.yd) - ₹{formatNumber(p.price)}
+                      Plot {p.plot_number} ({p.area_sqyd} sq.yd) - ₹{formatNumber(p.price)}{p.isPartnership ? ' [Partnership — Merge]' : (p.status !== 'available' ? ' [Own Booking]' : '')}
                     </option>
                   ))}
                 </select>

@@ -142,7 +142,7 @@ export async function getProjectsWithStats() {
     .select(`
       *,
       bookings (
-        id, total_amount, discount_amount, status, client_id,
+        id, total_amount, discount_amount, status, client_id, partner_client_id,
         payments ( amount )
       )
     `)
@@ -186,7 +186,8 @@ export async function getProjectOverview(projectId: string) {
     .select(`
       *,
       bookings (
-        id, total_amount, discount_amount, status, client_id,
+        id, total_amount, discount_amount, status, client_id, partner_client_id,
+        partner:partner_client_id ( id, name ),
         payments ( amount )
       )
     `)
@@ -230,7 +231,8 @@ export async function getProjectPlots(projectId: string) {
       *,
       clients:client_id ( name, phone ),
       bookings (
-        id, total_amount, discount_amount, status, client_id,
+        id, total_amount, discount_amount, status, client_id, partner_client_id,
+        partner:partner_client_id ( id, name ),
         payments ( amount )
       )
     `)

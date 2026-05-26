@@ -8,7 +8,7 @@ export async function getClients() {
   const supabase = await createClient()
   const { data, error } = await supabase.from('clients').select(`
     *,
-    bookings (
+    bookings!bookings_client_id_fkey (
       plots (
         projects ( name )
       )
@@ -53,20 +53,38 @@ export async function addClient(formData: any) {
 
 export async function getClientById(clientId: string) {
   const supabase = await createClient()
+
+  // Primary bookings: this client is the deal owner
   const { data, error } = await supabase
     .from('clients')
     .select(`
       *,
-      bookings (
-        id, status, total_amount, discount_amount, booking_date,
+      bookings!bookings_client_id_fkey (
+        id, status, total_amount, discount_amount, booking_date, partner_client_id,
+        partner:partner_client_id ( id, name ),
         plots ( id, plot_number, project_id, projects ( id, name ) ),
-        payments ( id, amount, payment_date, payment_mode, transaction_id, description )
+        payments ( id, amount, payment_date, payment_mode, transaction_id, description, entity_id )
       )
     `)
     .eq('id', clientId)
     .single()
   if (error) { console.error('Error fetching client:', error); return null }
-  return data
+
+  // Partnership bookings: this client was added as a partner by another client
+  const { data: partnerRows } = await supabase
+    .from('bookings')
+    .select(`
+      id, status, total_amount, discount_amount, booking_date, partner_client_id,
+      client:client_id ( id, name ),
+      plots ( id, plot_number, project_id, projects ( id, name ) ),
+      payments ( id, amount, payment_date, payment_mode, transaction_id, description, entity_id )
+    `)
+    .eq('partner_client_id', clientId)
+
+  const partnerBookings = (partnerRows || []).map((b: any) => ({ ...b, isPartnership: true }))
+  const primaryBookings = (data.bookings || []).map((b: any) => ({ ...b, isPartnership: false }))
+
+  return { ...data, bookings: [...primaryBookings, ...partnerBookings] }
 }
 
 export async function updateClient(clientId: string, formData: any): Promise<{ success: boolean; error?: string }> {

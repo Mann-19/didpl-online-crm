@@ -20,6 +20,7 @@ export async function getPlotDetails(plotId: string, projectId?: string) {
       bookings (
         *,
         client:client_id ( id, name, phone, email, client_code ),
+        partner:partner_client_id ( id, name, phone, email, client_code ),
         consultant:consultant_id ( id, name ),
         payments ( * )
       )
@@ -357,6 +358,141 @@ export async function getAvailablePlots(projectId: string) {
   }
 
   return plots || []
+}
+
+// Get plots transferable for a specific client:
+// - Available plots in the project
+// - Plots where the client already has a booking (own or as partner) — so they can merge
+export async function getTransferablePlotsForClient(projectId: string, clientId: string) {
+  const supabase = await createClient()
+
+  // 1. All available plots
+  const { data: available } = await supabase
+    .from('plots')
+    .select('id, plot_number, area_sqyd, price, status')
+    .eq('project_id', projectId)
+    .eq('status', 'available')
+    .order('plot_number', { ascending: true })
+
+  // 2. Plots where this client is primary or partner (token_paid / sold)
+  const { data: primaryBookings } = await supabase
+    .from('bookings')
+    .select('plot:plot_id ( id, plot_number, area_sqyd, price, status )')
+    .eq('client_id', clientId)
+    .in('status', ['pending', 'confirmed'])
+
+  const { data: partnerBookings } = await supabase
+    .from('bookings')
+    .select('plot:plot_id ( id, plot_number, area_sqyd, price, status )')
+    .eq('partner_client_id', clientId)
+    .in('status', ['pending', 'confirmed'])
+
+  // Merge and deduplicate by plot id, tagging partnership plots
+  const seen = new Set<string>()
+  const result: any[] = []
+
+  ;(available || []).forEach((p: any) => {
+    if (!seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: false }) }
+  })
+  ;(primaryBookings || []).forEach((b: any) => {
+    const p = b.plot
+    if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: false }) }
+  })
+  ;(partnerBookings || []).forEach((b: any) => {
+    const p = b.plot
+    if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: true }) }
+  })
+
+  return result.sort((a: any, b: any) => {
+    const na = parseInt(a.plot_number, 10)
+    const nb = parseInt(b.plot_number, 10)
+    if (!isNaN(na) && !isNaN(nb)) return na - nb
+    return String(a.plot_number).localeCompare(String(b.plot_number))
+  })
+}
+
+// Add a partner client to an existing booking
+export async function addPartnerToBooking(
+  bookingId: string,
+  partnerClientId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('bookings')
+    .update({ partner_client_id: partnerClientId })
+    .eq('id', bookingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+// Remove the partner from a booking
+export async function removePartnerFromBooking(
+  bookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('bookings')
+    .update({ partner_client_id: null })
+    .eq('id', bookingId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+// Merge a client's booking from one plot into an existing partnership booking on another plot.
+// All payments from the source booking are re-attributed to the target booking.
+// The source booking is then deleted and the source plot status is recalculated.
+export async function mergeTransferIntoPartnership(
+  sourceBookingId: string,
+  targetBookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  // 1. Fetch source booking details
+  const { data: sourceBooking, error: srcErr } = await supabase
+    .from('bookings')
+    .select('plot_id, client_id, payments ( id )')
+    .eq('id', sourceBookingId)
+    .single()
+
+  if (srcErr || !sourceBooking) return { success: false, error: srcErr?.message || 'Source booking not found' }
+
+  const sourcePlotId = sourceBooking.plot_id
+  const sourcePaymentIds = (sourceBooking.payments || []).map((p: any) => p.id)
+
+  // 2. Move all payments to the target booking
+  if (sourcePaymentIds.length > 0) {
+    const { error: payErr } = await supabase
+      .from('payments')
+      .update({ booking_id: targetBookingId })
+      .in('id', sourcePaymentIds)
+    if (payErr) return { success: false, error: payErr.message }
+  }
+
+  // 3. Delete source booking
+  const { error: delErr } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', sourceBookingId)
+  if (delErr) return { success: false, error: delErr.message }
+
+  // 4. Recalculate source plot status
+  const { data: remaining } = await supabase
+    .from('bookings')
+    .select('id, status')
+    .eq('plot_id', sourcePlotId)
+
+  const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
+  const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
+  const newStatus = hasConfirmed ? 'sold' : hasPending ? 'token_paid' : 'available'
+  const updateData: any = { status: newStatus }
+  if (newStatus === 'available') updateData.client_id = null
+
+  await supabase.from('plots').update(updateData).eq('id', sourcePlotId)
+
+  revalidatePath('/projects')
+  return { success: true }
 }
 
 // Update discount on an existing booking

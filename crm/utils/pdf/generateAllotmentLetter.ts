@@ -76,7 +76,11 @@ We look forward to a long and valuable relationship with you.`;
     y += 6;
 
     // To section
-    doc.text(`Dear ${data.name || data.client_name || 'Client'},`, margin, y);
+    // To section — show both names if partnership
+    const recipientName = data.partner_name
+      ? `${data.name || data.client_name || 'Client'} & ${data.partner_name}`
+      : (data.name || data.client_name || 'Client');
+    doc.text(`Dear ${recipientName},`, margin, y);
     y += 10;
 
     // Body Text
@@ -201,7 +205,10 @@ We look forward to a long and valuable relationship with you.`;
     y += 6;
 
     // --- SAVE or RETURN for PREVIEW ---
-    const fileName = `Allotment_Letter_${(data.name || data.client_name || 'Client').replace(/\s+/g, '_')}.pdf`;
+    const baseName = data.partner_name
+      ? `${(data.name || data.client_name || 'Client').replace(/\s+/g, '_')}_and_${data.partner_name.replace(/\s+/g, '_')}`
+      : (data.name || data.client_name || 'Client').replace(/\s+/g, '_');
+    const fileName = `Allotment_Letter_${baseName}.pdf`;
 
     if (preview) {
         // Return doc and fileName for preview
