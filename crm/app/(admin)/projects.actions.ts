@@ -60,9 +60,9 @@ function calculateProjectStats(project: any, plots: any[]) {
     totalRevenue += plotRevenue
 
     if (isConfirmed) confirmedPlots++
-    if (isSold) soldPlots++
+    if (isSold && !isConfirmed) soldPlots++
     
-    if ((plot.status === 'token_paid' || plot.status === 'partially_paid') && !isSold) {
+    if ((plot.status === 'token_paid' || plot.status === 'partially_paid') && !isSold && !isConfirmed) {
       tokenPlots++
     }
 
@@ -203,13 +203,13 @@ export async function getProjectOverview(projectId: string) {
 
   const stats = calculateProjectStats(project, activePlots)
   
-  // Calculate status counts
-  const statusCounts = { available: 0, token: 0, partial: 0, sold: 0, cancelled: stats.cancelledPlots }
-  activePlots?.forEach((plot: any) => {
-    if (plot.status === 'token_paid' || plot.status === 'partially_paid') statusCounts.token++
-    else if (plot.status === 'sold') statusCounts.sold++
-  })
-  statusCounts.available = (activePlots?.length || 0) - statusCounts.sold
+  const statusCounts = { 
+    available: stats.availablePlots, 
+    token: stats.tokenPlots, 
+    partial: 0, 
+    sold: stats.soldPlots, 
+    cancelled: stats.cancelledPlots 
+  }
 
   return { project: stats, statusCounts }
 }
@@ -355,8 +355,8 @@ export async function getProjectClients(projectId: string, status?: string) {
       const paid = (b.payments || []).reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0)
       
       let isFullyPaid = deal > 0 && paid >= deal
-      let isSold = isFullyPaid
       let isConfirmed = b.status === 'confirmed'
+      let isSold = isFullyPaid && !isConfirmed
       let isTokenPaid = (p.status === 'token_paid' || p.status === 'partially_paid') && !isFullyPaid
 
       let match = true
