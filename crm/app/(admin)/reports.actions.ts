@@ -49,7 +49,7 @@ export async function getRecoveryReport() {
       id, total_amount, discount_amount, booking_date, status,
       client:client_id ( id, name, phone ),
       plot:plot_id ( plot_number, project:project_id ( name ) ),
-      payments ( amount )
+      amount_paid
     `)
     .in('status', ['pending', 'confirmed'])
     .order('booking_date', { ascending: false })
@@ -61,7 +61,7 @@ export async function getRecoveryReport() {
       const total = Number(b.total_amount) || 0
       const discount = Number(b.discount_amount) || 0
       const deal = total - discount
-      const paid = (b.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+      const paid = Number(b.amount_paid) || 0
       const balance = deal - paid
       return {
         id: b.id,
@@ -156,7 +156,7 @@ export async function getBookingReport() {
       plot:plot_id ( plot_number, area_sqyd, project:project_id ( name ) ),
       consultant:consultant_id ( name ),
       booking_partners ( client:client_id ( name ) ),
-      payments ( amount )
+      amount_paid
     `)
     .neq('status', 'cancelled')
     .order('booking_date', { ascending: false })
@@ -166,7 +166,7 @@ export async function getBookingReport() {
   return (data || []).map((b: any) => {
     const total = Number(b.total_amount) || 0
     const discount = Number(b.discount_amount) || 0
-    const paid = (b.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+    const paid = Number(b.amount_paid) || 0
     const partnerNames = (b.booking_partners || []).map((bp: any) => bp.client?.name).filter(Boolean)
 
     return {

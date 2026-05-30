@@ -30,39 +30,44 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
     // 1. Process Plot Data
     const dataMap: any = {};
     plots?.forEach((p: any) => {
-      // Pick the most relevant active booking:
-      // Priority: confirmed first (plot is sold), then pending (token paid), ignore cancelled
+      // Pick the most relevant active bookings
       const allBookings: any[] = p.bookings || [];
-      const activeBooking =
-        allBookings.find((b: any) => b.status === 'confirmed') ||
-        allBookings.find((b: any) => b.status === 'pending') ||
-        null;
+      const isSold = p.status === 'sold';
+      
+      let relevantBookings: any[] = [];
+      if (isSold) {
+        relevantBookings = allBookings.filter((b: any) => b.status === 'confirmed');
+      } else {
+        relevantBookings = allBookings.filter((b: any) => b.status === 'pending');
+      }
 
-      const totalAmount = activeBooking
-        ? (activeBooking.total_amount - (activeBooking.discount_amount || 0))
-        : p.price;
-      const payments = activeBooking?.payments || [];
-      const amountPaid = payments.reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0);
-      const percent = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
-
-      // Prefer the active booking's client name over the stale plot.client_id join
-      const clientName =
-        activeBooking?.client?.name ||
-        p.clients?.name ||
-        "—";
+      // Map bookings to necessary overlay data
+      const mappedBookings = relevantBookings.map((b: any) => {
+        const totalAmount = b.total_amount - (b.discount_amount || 0);
+        const payments = b.payments || [];
+        const amountPaid = payments.reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0);
+        const percent = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
+        return {
+          id: b.id,
+          clientName: b.client?.name || "—",
+          status: b.status,
+          amountPaid: `₹${parseInt(String(amountPaid)).toLocaleString("en-IN")}`,
+          paymentPercentage: Math.round(percent)
+        };
+      });
 
       const plotData = {
         plot: p.plot_number,
         area: p.area_sqyd ? `${p.area_sqyd} sq.yd` : "N/A",
         status: p.status === "sold" ? "Sold" :
+            p.status === "fully_paid" ? "Fully Paid" :
             p.status === "token_paid" ? "Token Paid" : "Available",
-        paymentPercentage: Math.round(percent),
-        price: `₹${parseInt(String(totalAmount)).toLocaleString("en-IN")}`,
-        amountPaid: `₹${parseInt(String(amountPaid)).toLocaleString("en-IN")}`,
-        clientName,
+        price: `₹${parseInt(String(p.price)).toLocaleString("en-IN")}`,
         colorClass:
           p.status === "sold" ? "status-sold" :
+            p.status === "fully_paid" ? "status-fully-paid" :
             p.status === "token_paid" ? "status-token" : "status-available",
+        bookings: mappedBookings
       };
 
       dataMap[p.plot_number] = plotData;
@@ -104,7 +109,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         if (data) {
           updateDetailsBar(data);
           const rect = el.getBoundingClientRect();
-          showTooltip(`Plot ${num}`, ev.clientX, rect.top + window.scrollY - 30);
+          showTooltip(num, data, ev.clientX, rect.top + window.scrollY - 30);
         }
       });
 
@@ -123,11 +128,55 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
       grid!.appendChild(el);
     }
 
-    function showTooltip(text: string, x: number, y: number) {
+    function showTooltip(num: any, data: any, x: number, y: number) {
       if (!tooltip) return;
-      tooltip.style.left = `${x}px`;
+      
+      let badgeColor = "bg-gray-100 text-gray-800";
+      if (data.status === 'Sold') badgeColor = "bg-rose-500 text-white";
+      if (data.status === 'Available') badgeColor = "bg-emerald-500 text-white";
+      if (data.status === 'Token Paid') badgeColor = "bg-amber-500 text-white";
+      if (data.status === 'Fully Paid') badgeColor = "bg-purple-500 text-white";
+
+      let bookingsHtml = "";
+      if (data.bookings && data.bookings.length > 0) {
+        bookingsHtml = `<div class="mt-3 pt-3 border-t border-gray-600 flex flex-col gap-2">
+          ${data.bookings.map((b: any) => `
+            <div class="flex items-center justify-between text-xs bg-gray-800 p-2 rounded border border-gray-600">
+              <div class="flex flex-col gap-1">
+                <span class="font-bold text-gray-100">${b.clientName}</span>
+                <span class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-gray-700 text-gray-300 w-max">${b.status}</span>
+              </div>
+              <div class="flex flex-col items-end gap-1">
+                <span class="font-medium text-emerald-400">${b.amountPaid}</span>
+                <span class="text-[10px] text-gray-400">${b.paymentPercentage}% paid</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+      } else if (data.status !== 'Available') {
+        bookingsHtml = `<div class="mt-3 pt-3 border-t border-gray-600 text-xs text-gray-400 italic">No active negotiations</div>`;
+      }
+
+      tooltip.innerHTML = `
+        <div class="flex flex-col min-w-[240px]">
+          <div class="flex justify-between items-start mb-2">
+            <div class="font-bold text-white text-sm">Plot ${num}</div>
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${badgeColor}">${data.status}</span>
+          </div>
+          <div class="flex justify-between text-xs text-gray-300">
+            <span>Area: <span class="text-white font-medium">${data.area}</span></span>
+            <span>List Price: <span class="text-white font-medium">${data.price}</span></span>
+          </div>
+          ${bookingsHtml}
+        </div>
+      `;
+
+      // Prevent tooltip from overflowing the viewport
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const left = Math.min(x, window.innerWidth - (tooltipRect.width || 250) - 20);
+      
+      tooltip.style.left = `${left}px`;
       tooltip.style.top = `${y}px`;
-      tooltip.textContent = text;
       tooltip.style.display = "block";
     }
 
@@ -138,47 +187,9 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
 
     function updateDetailsBar(data: any) {
       if (!detailsBar) return;
-
-      if (!data) {
-        detailsBar.innerHTML = `
-          <div class="flex items-center gap-2 text-gray-400 text-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 3 7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/><path d="m13 13 6 6"/></svg>
-            <span class="font-medium">Hover over any plot to view details</span>
-          </div>
-        `;
-        return;
-      }
-
-      let badgeColor = "bg-gray-100 text-gray-800";
-      if (data.status === 'Sold') badgeColor = "bg-rose-100 text-rose-700 border-rose-200";
-      if (data.status === 'Available') badgeColor = "bg-emerald-100 text-emerald-700 border-emerald-200";
-      if (data.status === 'Token Paid') badgeColor = "bg-yellow-100 text-yellow-700 border-yellow-200";
-
       detailsBar.innerHTML = `
-        <div class="flex items-center gap-6 animate-in fade-in slide-in-from-top-1 duration-200">
-          <div class="flex items-center gap-3 pr-6 border-r border-gray-200">
-            <div class="flex flex-col">
-              <span class="text-[10px] uppercase text-gray-400 font-bold tracking-wider">Plot</span>
-              <span class="text-lg font-bold text-gray-900 leading-none">${data.plot}</span>
-            </div>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${badgeColor}">${data.status}</span>
-          </div>
-          <div class="flex items-center gap-6">
-            <div><span class="block text-[10px] uppercase text-gray-400 font-bold">Area</span><span class="block text-sm font-semibold text-gray-700">${data.area}</span></div>
-            <div><span class="block text-[10px] uppercase text-gray-400 font-bold">Price</span><span class="block text-sm font-semibold text-gray-700">${data.price}</span></div>
-            <div><span class="block text-[10px] uppercase text-gray-400 font-bold">Client</span><span class="block text-sm font-semibold text-violet-600 max-w-[150px] truncate">${data.clientName}</span></div>
-          </div>
-          <div class="pl-6 border-l border-gray-200 flex items-center gap-3">
-            <div class="flex flex-col w-32">
-              <div class="flex justify-between text-[10px] mb-1">
-                <span class="text-gray-400 font-bold">PAYMENT</span>
-                <span class="font-bold text-gray-900">${data.paymentPercentage}%</span>
-              </div>
-              <div class="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                <div class="bg-violet-500 h-full rounded-full" style="width: ${data.paymentPercentage}%"></div>
-              </div>
-            </div>
-          </div>
+        <div class="flex items-center gap-2 text-gray-400 text-sm">
+          <span class="font-medium">Hover over any plot to view details</span>
         </div>
       `;
     }
@@ -226,6 +237,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         <div className="flex flex-wrap items-center gap-4 md:gap-6 pr-0 md:pr-6 md:border-r border-gray-100 w-full md:w-auto">
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-emerald-500 bg-white"></div><span className="text-xs font-medium text-gray-600">Available</span></div>
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-yellow-400 bg-yellow-50"></div><span className="text-xs font-medium text-gray-600">Token Paid</span></div>
+          <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-purple-500 bg-purple-50"></div><span className="text-xs font-medium text-gray-600">Fully Paid</span></div>
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-rose-500 bg-rose-50"></div><span className="text-xs font-medium text-gray-600">Sold</span></div>
           {(project.name === 'Dholera Homes 3' || project.name?.toLowerCase().includes('aerotown residency')) && (
             <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-slate-300 bg-slate-100"></div><span className="text-xs font-medium text-gray-600">Restricted</span></div>
@@ -259,6 +271,8 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         .project-layout-container .status-available { background-color: #ffffff; border-color: #10b981; color: #10b981; }
         .project-layout-container .status-available:hover { background-color: #ecfdf5; color: #047857; }
         .project-layout-container .status-token { background-color: #fefce8; border-color: #eab308; color: #a16207; }
+        .project-layout-container .status-fully-paid { background-color: #faf5ff; border-color: #a855f7; color: #7e22ce; }
+        .project-layout-container .status-fully-paid:hover { background-color: #f3e8ff; color: #6b21a8; }
         .project-layout-container .status-partial { background-color: #fff7ed; border-color: #f97316; color: #c2410c; }
         .project-layout-container .status-sold { background-color: #fff1f2; border-color: #f43f5e; color: #be123c; }
         .project-layout-container .status-disabled { background-color: #f1f5f9; border-color: #cbd5e1; color: #94a3b8; cursor: not-allowed !important; opacity: 0.55; pointer-events: none; }

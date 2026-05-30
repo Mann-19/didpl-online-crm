@@ -78,7 +78,11 @@ export default function PlotDetailsClient({
     setBookingFees(prev => ({ ...prev, ...initialFees }));
   }, [initialPlot]);
 
-  const [feeForm, setFeeForm] = useState({ stampDuty: '', legal: '', maintenance: '' });
+  const [feeForm, setFeeForm] = useState({ 
+    stampDuty: { value: '', type: '%' }, 
+    legal: { value: '', type: '%' }, 
+    maintenance: { value: '', type: '%' } 
+  });
 
   const [isPending, startTransition] = React.useTransition();
   const { toast, showToast, hideToast } = useToast();
@@ -95,7 +99,7 @@ export default function PlotDetailsClient({
 
   // Payment form
   const [paymentForm, setPaymentForm] = useState({
-    amount: '', date: '', mode: 'Cash', description: '', transaction_id: ''
+    amount: '', date: new Date().toISOString().split('T')[0], mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment', entity_id: ''
   });
 
   // Discount form
@@ -121,11 +125,7 @@ export default function PlotDetailsClient({
     status: 'pending',
   });
   const [editPaymentForm, setEditPaymentForm] = useState({
-    amount: '',
-    payment_date: '',
-    payment_mode: 'Cash',
-    description: '',
-    transaction_id: '',
+    id: '', amount: '', payment_date: '', payment_mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment'
   });
 
   // SSR-safe today date
@@ -198,13 +198,14 @@ export default function PlotDetailsClient({
     e.preventDefault();
     if (!transferBookingId || !selectedNewPlotId) return;
 
-    const selectedPlot = availablePlots.find((p: any) => p.id === selectedNewPlotId);
+    const selectedPlot = availablePlots.find((p: any) => p.uniqueKey === selectedNewPlotId);
+    const actualPlotId = selectedPlot?.id;
+    if (!actualPlotId) return;
+
     const isPartnershipMerge = selectedPlot?.isPartnership;
 
     startTransition(async () => {
       if (isPartnershipMerge) {
-        // Find the target booking on the selected partnership plot
-        // We need to fetch the booking id for that plot; we use mergeTargetBookingId if set
         if (!mergeTargetBookingId) { showToast('Could not find target booking', 'error'); return; }
         const result = await mergeTransferIntoPartnership(transferBookingId, mergeTargetBookingId);
         if (result.success) {
@@ -216,13 +217,12 @@ export default function PlotDetailsClient({
         }
       } else if (isEmployee) {
         const booking = bookings.find((b: any) => b.id === transferBookingId);
-        const newPlot = availablePlots.find((p: any) => p.id === selectedNewPlotId);
         const result = await submitChangeRequest({
           entity_type: 'booking',
           entity_id: transferBookingId,
           operation: 'update',
-          payload: { plot_id: selectedNewPlotId },
-          description: `Transfer booking for "${booking?.client?.name}" from plot ${plot.plot_number} to plot ${newPlot?.plot_number}`,
+          payload: { plot_id: actualPlotId },
+          description: `Transfer booking for "${booking?.client?.name}" from plot ${plot.plot_number} to plot ${selectedPlot.plot_number}`,
         });
         if (result.success) {
           showToast('Transfer request submitted for approval', 'warning');
@@ -231,7 +231,7 @@ export default function PlotDetailsClient({
           showToast(result.error || 'Failed', 'error');
         }
       } else {
-        const result = await transferBooking(transferBookingId, selectedNewPlotId);
+        const result = await transferBooking(transferBookingId, actualPlotId);
         if (result.success) {
           showToast('Plot transferred successfully', 'success');
           setShowTransferModal(false);
@@ -243,7 +243,6 @@ export default function PlotDetailsClient({
     });
   };
 
-  // Add Partner handler
   const handleAddPartner = (e: React.FormEvent) => {
     e.preventDefault();
     if (!partnerBookingId || !selectedPartnerId) { alert('Select a partner client'); return; }
@@ -392,6 +391,7 @@ export default function PlotDetailsClient({
         payment_mode: editPaymentForm.payment_mode,
         description: editPaymentForm.description,
         transaction_id: editPaymentForm.transaction_id || undefined,
+        payment_type: editPaymentForm.payment_type
       });
       if (result.success) {
         showToast('Payment updated', 'success');
@@ -414,7 +414,7 @@ export default function PlotDetailsClient({
 
   const handleAddPayment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeBookingId || !activeClientId) { alert('Missing booking info'); return; }
+    if (!activeBookingId) { alert('Missing booking info'); return; }
 
     startTransition(async () => {
       const payload = {
@@ -424,7 +424,8 @@ export default function PlotDetailsClient({
         payment_mode: paymentForm.mode,
         description: paymentForm.description,
         transaction_id: paymentForm.transaction_id || undefined,
-        entity_id: activeClientId,
+        entity_id: paymentForm.entity_id || activeClientId,
+        payment_type: paymentForm.payment_type
       };
 
       if (isEmployee) {
@@ -495,6 +496,7 @@ export default function PlotDetailsClient({
     setShowTransferModal(false);
     setShowAddPartnerModal(false);
     setShowFeesModal(false);
+    setShowEditPaymentModal(false);
   };
 
   const handlePrintAllotmentLetter = async (booking: any) => {
@@ -520,7 +522,11 @@ export default function PlotDetailsClient({
   };
 
   // ---- DERIVED ----
-  const bookings: any[] = plot.bookings || [];
+  const bookings: any[] = [...(plot.bookings || [])].sort((a: any, b: any) => {
+    if (a.status === 'confirmed') return -1;
+    if (b.status === 'confirmed') return 1;
+    return 0;
+  });
   const confirmedBooking = bookings.find((b: any) => b.status === 'confirmed');
   const pendingBookings = bookings.filter((b: any) => b.status === 'pending');
   const filteredClients = clients.filter((c: any) =>
@@ -540,6 +546,30 @@ export default function PlotDetailsClient({
     return 'bg-emerald-100 text-emerald-700';
   };
 
+  const handleEditPaymentClick = (payment: any) => {
+    setEditPaymentForm({
+      id: payment.id,
+      amount: payment.amount.toString(),
+      payment_date: payment.payment_date,
+      payment_mode: payment.payment_mode,
+      transaction_id: payment.transaction_id || '',
+      description: payment.description || '',
+      payment_type: payment.payment_type || 'Plot payment'
+    });
+    setActivePaymentId(payment.id);
+    setShowEditPaymentModal(true);
+  };
+
+  const parseFee = (fee: string | number | undefined, agreedValue: number) => {
+    if (!fee) return 0;
+    const str = String(fee).trim();
+    if (str.endsWith('%')) {
+      const percent = parseFloat(str.replace('%', ''));
+      return (agreedValue * percent) / 100;
+    }
+    return parseFloat(str) || 0;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
@@ -556,20 +586,21 @@ export default function PlotDetailsClient({
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>
               {plot.status?.replace('_', ' ')}
             </span>
-            {isMasterAdmin && (
+            {/* Edit button */}
+            {/* {isMasterAdmin && (
               <button
                 onClick={() => setShowEditPlotModal(true)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition-colors"
               >
                 <Edit2 className="w-3.5 h-3.5" /> Edit Plot
               </button>
-            )}
+            )} */}
           </div>
           <p className="text-gray-500 mt-1 font-medium">{plot.project?.name}</p>
         </div>
 
         {/* STATS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
             <div>
               <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Area Size</p>
@@ -586,19 +617,6 @@ export default function PlotDetailsClient({
             </div>
             <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
               <Banknote className="w-6 h-6" />
-            </div>
-          </div>
-          <div className="bg-white p-5 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">
-                {plot.client?.name ? 'Confirmed Owner' : 'Negotiations'}
-              </p>
-              <p className="text-xl font-bold text-gray-900 truncate max-w-[200px]">
-                {plot.client?.name || `${pendingBookings.length} active`}
-              </p>
-            </div>
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${plot.client?.name ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'}`}>
-              <User className="w-6 h-6" />
             </div>
           </div>
         </div>
@@ -630,14 +648,14 @@ export default function PlotDetailsClient({
             ) : (
               bookings.map((booking: any) => {
                 const finalDeal = booking.total_amount - (booking.discount_amount || 0);
-                const fees = bookingFees[booking.id] || { stampDuty: 0, legal: 0, maintenance: 0 };
-                const stampAmount = (booking.total_amount * fees.stampDuty) / 100;
-                const legalAmount = (booking.total_amount * fees.legal) / 100;
-                const maintenanceAmount = (booking.total_amount * fees.maintenance) / 100;
-                const totalFees = stampAmount + legalAmount + maintenanceAmount;
-                const grandTotal = finalDeal + totalFees;
+                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                const stampDutyAmount = parseFee(fees.stampDuty, finalDeal);
+                const legalFeesAmount = parseFee(fees.legal, finalDeal);
+                const maintenanceAmount = parseFee(fees.maintenance, finalDeal);
+                const totalFees = stampDutyAmount + legalFeesAmount + maintenanceAmount;
+                const grandTotal = finalDeal; // Fees are included in the agreed value
 
-                const paid = (booking.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+                const paid = Number(booking.amount_paid) || 0;
                 const due = grandTotal - paid;
                 const isConfirmed = booking.status === 'confirmed';
                 const paymentPct = grandTotal > 0 ? Math.round((paid / grandTotal) * 100) : 0;
@@ -678,8 +696,6 @@ export default function PlotDetailsClient({
                         <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${statusBadge(booking.status)}`}>
                           Booking Status: {booking.status}
                         </span>
-                        {/* Admin Actions */}
-                        {/* Add Partner button — always shown unless plot is cancelled */}
                         {(isAdmin || isEmployee) && booking.status !== 'cancelled' && (
                           <button
                             onClick={() => { setPartnerBookingId(booking.id); setPartnerSearch(''); setSelectedPartnerId(''); setShowAddPartnerModal(true); }}
@@ -688,7 +704,6 @@ export default function PlotDetailsClient({
                             <UserPlus className="w-3.5 h-3.5" /> Add Partner
                           </button>
                         )}
-                        {/* Per-partner remove buttons */}
                         {(isAdmin || isEmployee) && (booking.booking_partners || []).map((bp: any) => (
                           <button
                             key={bp.client_id}
@@ -770,32 +785,26 @@ export default function PlotDetailsClient({
                           <span>Discount</span>
                           <span className="font-bold">– ₹{formatNumber(booking.discount_amount || 0)}</span>
                         </div>
-                        <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-gray-900">
-                          <span>Final Deal</span>
-                          <span>₹{formatNumber(finalDeal)}</span>
+                        <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-violet-700">
+                          <span>Final Deal Value</span>
+                          <span>₹{formatNumber(grandTotal)}</span>
                         </div>
-                        {fees.stampDuty > 0 && (
-                          <div className="flex justify-between text-sm text-gray-600">
-                            <span>+ Stamp Duty ({fees.stampDuty}%)</span>
-                            <span>₹{formatNumber(stampAmount)}</span>
+                        {stampDutyAmount > 0 && (
+                          <div className="flex justify-between text-xs text-gray-500 pl-4">
+                            <span>↳ Includes Stamp Duty</span>
+                            <span>₹{formatNumber(stampDutyAmount)}</span>
                           </div>
                         )}
-                        {fees.legal > 0 && (
-                          <div className="flex justify-between text-sm text-gray-600">
-                            <span>+ Legal Fees ({fees.legal}%)</span>
-                            <span>₹{formatNumber(legalAmount)}</span>
+                        {legalFeesAmount > 0 && (
+                          <div className="flex justify-between text-xs text-gray-500 pl-4">
+                            <span>↳ Includes Legal Fees</span>
+                            <span>₹{formatNumber(legalFeesAmount)}</span>
                           </div>
                         )}
-                        {fees.maintenance > 0 && (
-                          <div className="flex justify-between text-sm text-gray-600">
-                            <span>+ Maintenance ({fees.maintenance}%)</span>
+                        {maintenanceAmount > 0 && (
+                          <div className="flex justify-between text-xs text-gray-500 pl-4">
+                            <span>↳ Includes Maintenance</span>
                             <span>₹{formatNumber(maintenanceAmount)}</span>
-                          </div>
-                        )}
-                        {totalFees > 0 && (
-                          <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-violet-700">
-                            <span>Total Deal Value</span>
-                            <span>₹{formatNumber(grandTotal)}</span>
                           </div>
                         )}
                         <div className="flex justify-between text-sm text-emerald-600 pt-1">
@@ -806,7 +815,6 @@ export default function PlotDetailsClient({
                           <span>Balance Due</span>
                           <span>₹{formatNumber(due)}</span>
                         </div>
-                        {/* Progress bar */}
                         <div className="pt-1">
                           <div className="flex justify-between text-xs text-gray-400 mb-1">
                             <span>Payment Progress</span><span>{paymentPct}%</span>
@@ -819,11 +827,17 @@ export default function PlotDetailsClient({
                           <button
                             onClick={() => {
                               setActiveFeeBookingId(booking.id);
-                              const existing = bookingFees[booking.id] || { stampDuty: 0, legal: 0, maintenance: 0 };
+                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                              const parseState = (val: string | number | undefined) => {
+                                if (!val || val === '0') return { value: '', type: '%' };
+                                const str = String(val).trim();
+                                if (str.endsWith('%')) return { value: str.replace('%', ''), type: '%' };
+                                return { value: str, type: '₹' };
+                              };
                               setFeeForm({
-                                stampDuty: existing.stampDuty ? String(existing.stampDuty) : '',
-                                legal: existing.legal ? String(existing.legal) : '',
-                                maintenance: existing.maintenance ? String(existing.maintenance) : '',
+                                stampDuty: parseState(existing.stampDuty),
+                                legal: parseState(existing.legal),
+                                maintenance: parseState(existing.maintenance)
                               });
                               setShowFeesModal(true);
                             }}
@@ -851,9 +865,7 @@ export default function PlotDetailsClient({
                           <table className="w-full text-xs">
                             <thead className="bg-gray-50 border-b">
                                 <tr>
-                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Date</th>
-                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Mode</th>
-                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">By</th>
+                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Details</th>
                                   <th className="px-3 py-2 text-right text-gray-600 font-semibold">Amount</th>
                                   {isMasterAdmin && <th className="px-3 py-2"></th>}
                                 </tr>
@@ -861,37 +873,23 @@ export default function PlotDetailsClient({
                             <tbody>
                               {(booking.payments || []).map((p: any) => (
                                 <tr key={p.id} className="border-b last:border-0">
-                                  <td className="px-3 py-2 text-gray-700">
-                                    {new Date(p.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                  </td>
-                                  <td className="px-3 py-2 text-gray-700">{p.payment_mode}</td>
-                                  <td className="px-3 py-2 text-gray-500 text-xs">
-                                    {p.entity_id === booking.client_id
-                                      ? (booking.client?.name || '—')
-                                      : (() => {
-                                          const partnerMatch = (booking.booking_partners || []).find((bp: any) => bp.client_id === p.entity_id);
-                                          return partnerMatch
-                                            ? <span className="text-violet-600 font-semibold">{partnerMatch.client?.name || 'Partner'}</span>
-                                            : '—';
-                                        })()
-                                    }
+                                  <td className="px-3 py-2">
+                                    <p className="font-semibold text-gray-900">
+                                      {new Date(p.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                    </p>
+                                    <p className="text-gray-500">{p.payment_mode} • {p.payment_type || 'Plot payment'}</p>
+                                    {booking.booking_partners?.length > 0 && p.entity_id && (
+                                      <p className="text-xs text-violet-600 font-medium mt-0.5">
+                                        Paid by: {clients.find((c: any) => c.id === p.entity_id)?.name || 'Unknown'}
+                                      </p>
+                                    )}
                                   </td>
                                   <td className="px-3 py-2 text-right font-bold text-gray-900">₹{formatNumber(p.amount)}</td>
                                   {isMasterAdmin && (
                                     <td className="px-3 py-2">
-                                      <div className="flex items-center gap-1">
+                                      <div className="flex items-center gap-1 justify-end">
                                         <button
-                                          onClick={() => {
-                                            setActivePaymentId(p.id);
-                                            setEditPaymentForm({
-                                              amount: String(p.amount || ''),
-                                              payment_date: p.payment_date || '',
-                                              payment_mode: p.payment_mode || 'Cash',
-                                              description: p.description || '',
-                                              transaction_id: p.transaction_id || '',
-                                            });
-                                            setShowEditPaymentModal(true);
-                                          }}
+                                          onClick={() => handleEditPaymentClick(p)}
                                           className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
                                           title="Edit payment"
                                         >
@@ -910,7 +908,7 @@ export default function PlotDetailsClient({
                                 </tr>
                               ))}
                               {(booking.payments || []).length === 0 && (
-                                <tr><td colSpan={isMasterAdmin ? 5 : 4} className="p-3 text-center text-gray-400">No payments yet</td></tr>
+                                <tr><td colSpan={isMasterAdmin ? 3 : 2} className="p-3 text-center text-gray-400">No payments yet</td></tr>
                               )}
                             </tbody>
                           </table>
@@ -1023,29 +1021,61 @@ export default function PlotDetailsClient({
               <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleAddPayment} className="space-y-4">
-              {/* Payment By — only shown when booking has a partner */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
+                  value={paymentForm.payment_type} onChange={e => {
+                    const type = e.target.value;
+                    let amountStr = paymentForm.amount;
+                    if (type !== 'Plot payment') {
+                      const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
+                      if (activeBooking) {
+                        const finalDeal = activeBooking.total_amount - (activeBooking.discount_amount || 0);
+                        const fees = bookingFees[activeBookingId] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                        let amt = 0;
+                        if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
+                        if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);
+                        if (type === 'Maintenance fees') amt = parseFee(fees.maintenance, finalDeal);
+                        amountStr = amt > 0 ? amt.toString() : '';
+                      }
+                    }
+                    setPaymentForm({ ...paymentForm, payment_type: type, amount: amountStr });
+                  }}>
+                  <option value="Plot payment">Plot payment</option>
+                  <option value="Stamp duty fees">Stamp duty fees</option>
+                  <option value="Legal fees">Legal fees</option>
+                  <option value="Maintenance fees">Maintenance fees</option>
+                </select>
+              </div>
+
               {(() => {
-                const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
-                const hasPartners = (activeBooking?.booking_partners || []).length > 0;
-                return hasPartners ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment By</label>
-                    <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
-                      value={activeClientId || ''}
-                      onChange={e => setActiveClientId(e.target.value)}
-                    >
-                      <option value={activeBooking.client_id}>{activeBooking.client?.name} (Primary)</option>
-                      {(activeBooking.booking_partners || []).map((bp: any) => (
-                        <option key={bp.client_id} value={bp.client_id}>{bp.client?.name} (Partner)</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : null;
+                const activeBkg = bookings.find((b: any) => b.id === activeBookingId);
+                const partners = activeBkg?.booking_partners?.map((bp: any) => bp.client).filter(Boolean) || [];
+                const primaryClient = activeBkg?.client;
+                
+                if (partners.length > 0) {
+                  return (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Paying Entity</label>
+                      <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
+                        value={paymentForm.entity_id || primaryClient?.id || ''} 
+                        onChange={e => setPaymentForm({ ...paymentForm, entity_id: e.target.value })}>
+                        {primaryClient && <option value={primaryClient.id}>{primaryClient.name} (Primary)</option>}
+                        {partners.map((p: any) => (
+                          <option key={p.id} value={p.id}>{p.name} (Partner)</option>
+                        ))}
+                      </select>
+                    </div>
+                  );
+                }
+                return null;
               })()}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
-                  disabled={isPending}
+                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  disabled={isPending || paymentForm.payment_type !== 'Plot payment'}
+                  placeholder={paymentForm.payment_type !== 'Plot payment' && !paymentForm.amount ? 'Calculate fee first' : ''}
                   value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
               </div>
               <div>
@@ -1063,18 +1093,6 @@ export default function PlotDetailsClient({
                   <option>UPI</option>
                   <option>NEFT/IMPS/RTGS</option>
                 </select>
-              </div>
-              {paymentForm.mode !== 'Cash' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
-                  <input type="text" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
-                    value={paymentForm.transaction_id} onChange={e => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })} />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input type="text" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
-                  value={paymentForm.description} onChange={e => setPaymentForm({ ...paymentForm, description: e.target.value })} />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={handleCloseModal}
@@ -1127,10 +1145,14 @@ export default function PlotDetailsClient({
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (activeFeeBookingId) {
+                const formatFee = (f: { value: string, type: string }) => {
+                  if (!f.value) return '0';
+                  return f.type === '%' ? `${f.value}%` : f.value;
+                };
                 const newFees = {
-                  stampDuty: parseFloat(feeForm.stampDuty) || 0,
-                  legal: parseFloat(feeForm.legal) || 0,
-                  maintenance: parseFloat(feeForm.maintenance) || 0,
+                  stampDuty: formatFee(feeForm.stampDuty),
+                  legal: formatFee(feeForm.legal),
+                  maintenance: formatFee(feeForm.maintenance),
                 };
                 
                 setBookingFees(prev => ({
@@ -1150,22 +1172,46 @@ export default function PlotDetailsClient({
               }
             }} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty (%)</label>
-                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                  placeholder="0" value={feeForm.stampDuty}
-                  onChange={e => setFeeForm({ ...feeForm, stampDuty: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty</label>
+                <div className="flex">
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                    placeholder="0" value={feeForm.stampDuty.value}
+                    onChange={e => setFeeForm({ ...feeForm, stampDuty: { ...feeForm.stampDuty, value: e.target.value } })} />
+                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
+                    value={feeForm.stampDuty.type}
+                    onChange={e => setFeeForm({ ...feeForm, stampDuty: { ...feeForm.stampDuty, type: e.target.value } })}>
+                    <option value="%">%</option>
+                    <option value="₹">₹</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Legal Fees (%)</label>
-                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                  placeholder="0" value={feeForm.legal}
-                  onChange={e => setFeeForm({ ...feeForm, legal: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Legal Fees</label>
+                <div className="flex">
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                    placeholder="0" value={feeForm.legal.value}
+                    onChange={e => setFeeForm({ ...feeForm, legal: { ...feeForm.legal, value: e.target.value } })} />
+                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
+                    value={feeForm.legal.type}
+                    onChange={e => setFeeForm({ ...feeForm, legal: { ...feeForm.legal, type: e.target.value } })}>
+                    <option value="%">%</option>
+                    <option value="₹">₹</option>
+                  </select>
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance Fees (%)</label>
-                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                  placeholder="0" value={feeForm.maintenance}
-                  onChange={e => setFeeForm({ ...feeForm, maintenance: e.target.value })} />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance</label>
+                <div className="flex">
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                    placeholder="0" value={feeForm.maintenance.value}
+                    onChange={e => setFeeForm({ ...feeForm, maintenance: { ...feeForm.maintenance, value: e.target.value } })} />
+                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
+                    value={feeForm.maintenance.type}
+                    onChange={e => setFeeForm({ ...feeForm, maintenance: { ...feeForm.maintenance, type: e.target.value } })}>
+                    <option value="%">%</option>
+                    <option value="₹">₹</option>
+                  </select>
+                </div>
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={handleCloseModal}
@@ -1294,11 +1340,39 @@ export default function PlotDetailsClient({
             <form onSubmit={handleEditPayment} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-500"
+                  disabled={isPending || editPaymentForm.payment_type !== 'Plot payment'}
+                  placeholder={editPaymentForm.payment_type !== 'Plot payment' && !editPaymentForm.amount ? 'Calculate fee first' : ''}
                   value={editPaymentForm.amount}
                   onChange={e => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
+                  value={editPaymentForm.payment_type} onChange={e => {
+                    const type = e.target.value;
+                    let amountStr = editPaymentForm.amount;
+                    if (type !== 'Plot payment') {
+                      const booking = bookings.find((b: any) => (b.payments || []).some((p: any) => p.id === activePaymentId));
+                      if (booking) {
+                        const finalDeal = booking.total_amount - (booking.discount_amount || 0);
+                        const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                        let amt = 0;
+                        if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
+                        if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);
+                        if (type === 'Maintenance fees') amt = parseFee(fees.maintenance, finalDeal);
+                        amountStr = amt > 0 ? amt.toString() : '';
+                      }
+                    }
+                    setEditPaymentForm({ ...editPaymentForm, payment_type: type, amount: amountStr });
+                  }}>
+                  <option value="Plot payment">Plot payment</option>
+                  <option value="Stamp duty fees">Stamp duty fees</option>
+                  <option value="Legal fees">Legal fees</option>
+                  <option value="Maintenance fees">Maintenance fees</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                   <input type="date" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
@@ -1433,19 +1507,41 @@ export default function PlotDetailsClient({
                   onChange={async (e) => {
                     const newVal = e.target.value;
                     setSelectedNewPlotId(newVal);
-                    const selected = availablePlots.find((p: any) => p.id === newVal);
-                    if (selected?.isPartnership && transferBookingId) {
+                    const selected = availablePlots.find((p: any) => p.uniqueKey === newVal);
+                    const actualPlotId = selected?.id;
+                    if (selected?.isPartnership && transferBookingId && actualPlotId) {
                       const booking = bookings.find((b: any) => b.id === transferBookingId);
                       // Fetch the target booking id on that partnership plot for this client
                       const { createClient } = await import('@/utils/supabase/client');
                       const supabase = createClient();
-                      const { data: targetBooking } = await supabase
+                      
+                      const clientId = booking?.client_id || '';
+                      
+                      // 1. Check if client is primary on target plot
+                      let { data: targetBooking } = await supabase
                         .from('bookings')
                         .select('id')
-                        .eq('plot_id', newVal)
-                        .eq('partner_client_id', booking?.client_id || '')
+                        .eq('plot_id', actualPlotId)
+                        .eq('client_id', clientId)
+                        .neq('id', transferBookingId)
                         .in('status', ['pending', 'confirmed'])
                         .single();
+                        
+                      if (!targetBooking) {
+                        // 2. Check if client is partner on target plot
+                        const { data: bPartners } = await supabase
+                          .from('booking_partners')
+                          .select('booking_id, bookings!inner(plot_id, status)')
+                          .eq('client_id', clientId)
+                          .eq('bookings.plot_id', actualPlotId)
+                          .neq('booking_id', transferBookingId)
+                          .in('bookings.status', ['pending', 'confirmed']);
+                          
+                        if (bPartners && bPartners.length > 0) {
+                           targetBooking = { id: bPartners[0].booking_id };
+                        }
+                      }
+                      
                       setMergeTargetBookingId(targetBooking?.id || null);
                     } else {
                       setMergeTargetBookingId(null);
@@ -1455,7 +1551,7 @@ export default function PlotDetailsClient({
                 >
                   <option value="" disabled>Select a plot...</option>
                   {availablePlots.map((p: any) => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.uniqueKey} value={p.uniqueKey}>
                       Plot {p.plot_number} ({p.area_sqyd} sq.yd) - ₹{formatNumber(p.price)}{p.isPartnership ? ' [Partnership — Merge]' : (p.status !== 'available' ? ' [Own Booking]' : '')}
                     </option>
                   ))}

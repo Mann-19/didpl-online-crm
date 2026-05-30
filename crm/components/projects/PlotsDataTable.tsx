@@ -9,6 +9,7 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
     if (status === 'available') return { emoji: '🟢', label: 'Available', color: 'bg-green-100 text-green-800' }
     if (status === 'token_paid') return { emoji: '🟡', label: 'Token Paid', color: 'bg-yellow-100 text-yellow-800' }
     if (status === 'sold') return { emoji: '🔴', label: 'Sold', color: 'bg-red-100 text-red-800' }
+    if (status === 'fully_paid') return { emoji: '🟣', label: 'Fully Paid', color: 'bg-purple-100 text-purple-800' }
     return { emoji: '⚪', label: 'Unknown', color: 'bg-gray-100 text-gray-800' }
   };
 
@@ -23,8 +24,9 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">List Price</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Collected</th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Payment %</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Client</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Plot Status</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Booking Status</th>
+              <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Confirmed Client</th>
               <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">Action</th>
             </tr>
           </thead>
@@ -40,15 +42,11 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
               const totalAmount = activeBooking
                 ? (activeBooking.total_amount - (activeBooking.discount_amount || 0))
                 : plot.price;
-              const payments = activeBooking?.payments || [];
-              const amountPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+              const amountPaid = Number(activeBooking?.amount_paid) || 0;
               const paymentPercentage = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
 
-              // Prefer booking's client name over stale plot join
-              const clientName =
-                activeBooking?.client?.name ||
-                plot.clients?.name ||
-                null;
+              const confirmedBooking = allBookings.find((b: any) => b.status === 'confirmed');
+              const clientName = confirmedBooking?.client?.name || null;
 
               const badge = getStatusBadge(plot.status);
 
@@ -61,13 +59,13 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
                   
                   <td className="px-6 py-4 text-sm font-semibold text-gray-800">
                     <div className="flex items-center gap-2">
-                      <div className="w-16 bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                      {/* <div className="w-16 bg-gray-200 rounded-full h-1.5 overflow-hidden">
                         <div
                           className="h-full rounded-full transition-all duration-300 bg-violet-500"
                           style={{ width: `${Math.min(paymentPercentage, 100)}%` }}
                         />
-                      </div>
-                      <span className="text-xs text-gray-600">{formatNumber(paymentPercentage)}%</span>
+                      </div> */}
+                      <span className="text-sm text-gray-600">{formatNumber(paymentPercentage)}%</span>
                     </div>
                   </td>
                   
@@ -75,6 +73,10 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 w-max ${badge.color}`}>
                       <span>{badge.emoji}</span> {badge.label}
                     </span>
+                  </td>
+
+                  <td className="px-6 py-4 text-sm text-gray-700 capitalize font-medium">
+                    {activeBooking ? activeBooking.status.replace('_', ' ') : <span className="text-gray-400 italic normal-case">—</span>}
                   </td>
                   
                   <td className="px-6 py-4 text-sm text-gray-700">
@@ -104,15 +106,6 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
             No plots found for this project.
           </div>
         )}
-      </div>
-
-      <div className="mt-6 p-4 bg-violet-50 rounded border border-violet-100">
-        <p className="text-sm text-violet-800 flex items-center gap-3">
-          <strong>Legend:</strong>
-          <span>🟢 Available</span>
-          <span>🟡 Token Paid</span>
-          <span>🔴 Sold</span>
-        </p>
       </div>
     </div>
   );

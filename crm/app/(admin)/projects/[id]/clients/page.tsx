@@ -78,7 +78,7 @@ export default async function ProjectClientsPage({
                               <span className="flex items-center gap-1"><Phone className="w-3 h-3" /> {client.phone}</span>
                             )}
                             {(client.residential_city || client.residential_state) && (
-                              <span className="flex items-center gap-1 hidden sm:flex">
+                              <span className="flex items-center gap-1 sm:flex">
                                 <MapPin className="w-3 h-3" /> 
                                 {[client.residential_city, client.residential_state].filter(Boolean).join(', ')}
                               </span>
@@ -87,7 +87,7 @@ export default async function ProjectClientsPage({
                         </div>
                       </div>
                       <div className="flex items-center gap-4 shrink-0">
-                        <div className="bg-violet-100 text-violet-700 px-3 py-1 rounded-full text-xs font-bold border border-violet-200 shadow-sm">
+                        <div className=" text-gray-700 px-3 py-1 rounded-full text-xs font-bold border border-gray-200 shadow-sm">
                           {plots.length} Plot{plots.length !== 1 ? 's' : ''}
                         </div>
                         <div className="text-gray-400 group-open:rotate-180 transition-transform duration-200">

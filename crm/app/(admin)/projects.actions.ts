@@ -11,7 +11,9 @@ function calculateProjectStats(project: any, plots: any[]) {
   let confirmedPlots = 0
   let soldPlots = 0
   let tokenPlots = 0
+  let fullyPaidPlots = 0
   let unavailablePlots = 0
+  let cancelledPlots = 0
 
   let totalRevenue = 0
   let totalListPrice = 0
@@ -29,21 +31,25 @@ function calculateProjectStats(project: any, plots: any[]) {
       (b: any) => b.status === 'confirmed' || b.status === 'pending'
     ) || []
 
-    let isSold = false
+    const cancelledBookings = plot.bookings?.filter(
+      (b: any) => b.status === 'cancelled'
+    ) || []
+
+    cancelledPlots += cancelledBookings.length
+
+    let isFullyPaid = false
     let isConfirmed = false
     let plotRevenue = 0
+    let hasActiveBooking = activeBookings.length > 0
 
-    if (activeBookings.length > 0) {
+    if (hasActiveBooking) {
       activeBookings.forEach((activeBooking: any) => {
         const dealValue =
           (Number(activeBooking.total_amount) || 0) -
           (Number(activeBooking.discount_amount) || 0)
-        const paid = (activeBooking.payments || []).reduce(
-          (sum: number, pay: any) => sum + (Number(pay.amount) || 0),
-          0
-        )
+        const paid = Number(activeBooking.amount_paid) || 0
 
-        if (dealValue > 0 && paid >= dealValue) isSold = true
+        if (dealValue > 0 && paid >= dealValue) isFullyPaid = true
         if (activeBooking.status === 'confirmed') {
           isConfirmed = true
           plotRevenue += dealValue
@@ -59,13 +65,15 @@ function calculateProjectStats(project: any, plots: any[]) {
 
     totalRevenue += plotRevenue
 
-    if (isConfirmed) confirmedPlots++
-    if (isSold && !isConfirmed) soldPlots++
+    let derivedPlotStatus = 'available'
+    if (isFullyPaid && isConfirmed) derivedPlotStatus = 'sold'
+    else if (isFullyPaid && !isConfirmed) derivedPlotStatus = 'fully_paid'
+    else if (hasActiveBooking) derivedPlotStatus = 'token_paid'
 
-    // token_paid: plot has pending bookings but no confirmed
-    if (plot.status === 'token_paid' && !isSold && !isConfirmed) {
-      tokenPlots++
-    }
+    if (isConfirmed && derivedPlotStatus !== 'sold') confirmedPlots++
+    if (derivedPlotStatus === 'sold') soldPlots++
+    if (derivedPlotStatus === 'fully_paid') fullyPaidPlots++
+    if (derivedPlotStatus === 'token_paid') tokenPlots++
 
     // Gather unique clients from active bookings
     activeBookings.forEach((b: any) => {
@@ -81,10 +89,8 @@ function calculateProjectStats(project: any, plots: any[]) {
       clients.add(plot.client_id)
     }
 
-    if (isConfirmed || isSold) {
+    if (derivedPlotStatus !== 'available' || plot.status !== 'available') {
       unavailablePlots++
-      soldAreaSqYd += Number(plot.area_sqyd) || 0
-    } else if (plot.status !== 'available') {
       soldAreaSqYd += Number(plot.area_sqyd) || 0
     }
   })
@@ -103,8 +109,10 @@ function calculateProjectStats(project: any, plots: any[]) {
     totalPlots,
     confirmedPlots,
     soldPlots,
+    fullyPaidPlots,
     tokenPlots,
     availablePlots,
+    cancelledPlots,
     totalListPrice,
     totalRevenue,
     amountReceived,
@@ -134,33 +142,30 @@ export async function getProjectsWithStats() {
     return []
   }
 
-  const { data: plots, error: plotsError } = await supabase
-    .from('plots')
-    .select(`
-      *,
-      bookings (
-        id, total_amount, discount_amount, status, client_id, booking_type,
-        booking_partners ( client_id ),
-        payments ( amount )
-      )
-    `)
-
-  if (plotsError) {
-    console.error('Error fetching plots for stats:', plotsError)
-    return []
-  }
-
-  // Group plots by project_id
-  const plotsByProject: Record<string, any[]> = {}
-  plots.forEach((plot: any) => {
-    if (!plotsByProject[plot.project_id]) plotsByProject[plot.project_id] = []
-    plotsByProject[plot.project_id].push(plot)
-  })
-
-  return projects.map((project: any) => {
-    const projectPlots = filterActivePlots(project.name, plotsByProject[project.id] || [])
+  // Fetch plots per project to avoid the global 1000 row limit truncating stats for later projects
+  const projectsWithStats = await Promise.all(projects.map(async (project: any) => {
+    const { data: plots, error: plotsError } = await supabase
+      .from('plots')
+      .select(`
+        *,
+        bookings (
+          id, total_amount, discount_amount, amount_paid, status, client_id, booking_type,
+          booking_partners ( client_id ),
+          payments ( amount )
+        )
+      `)
+      .eq('project_id', project.id)
+      
+    if (plotsError) {
+      console.error(`Error fetching plots for project ${project.id}:`, plotsError)
+      return calculateProjectStats(project, [])
+    }
+    
+    const projectPlots = filterActivePlots(project.name, plots || [])
     return calculateProjectStats(project, projectPlots)
-  })
+  }))
+
+  return projectsWithStats
 }
 
 // 2. Get Single Project Details
@@ -183,7 +188,7 @@ export async function getProjectOverview(projectId: string) {
     .select(`
       *,
       bookings (
-        id, total_amount, discount_amount, status, client_id, booking_type,
+        id, total_amount, discount_amount, amount_paid, status, client_id, booking_type,
         booking_partners ( client_id, client:client_id ( id, name ) ),
         payments ( amount )
       )
@@ -201,6 +206,7 @@ export async function getProjectOverview(projectId: string) {
   const statusCounts = {
     available: stats.availablePlots,
     token: stats.tokenPlots,
+    fullyPaid: stats.fullyPaidPlots,
     sold: stats.soldPlots,
   }
 
@@ -223,7 +229,7 @@ export async function getProjectPlots(projectId: string) {
       *,
       clients:client_id ( name, phone ),
       bookings (
-        id, total_amount, discount_amount, status, client_id, booking_type,
+        id, total_amount, discount_amount, amount_paid, status, client_id, booking_type,
         client:client_id ( id, name ),
         booking_partners ( client_id, client:client_id ( id, name ) ),
         payments ( amount )
@@ -271,7 +277,7 @@ export async function getProjectClients(projectId: string, status?: string) {
       status,
       clients(*),
       bookings(
-        id, status, total_amount, discount_amount,
+        id, status, total_amount, discount_amount, amount_paid,
         client:client_id(*),
         payments(amount)
       )
@@ -295,21 +301,22 @@ export async function getProjectClients(projectId: string, status?: string) {
       if (!clientData) return
 
       const deal = (Number(b.total_amount) || 0) - (Number(b.discount_amount) || 0)
-      const paid = (b.payments || []).reduce(
-        (sum: number, pay: any) => sum + (Number(pay.amount) || 0),
-        0
-      )
+      const paid = Number(b.amount_paid) || 0
 
       let isFullyPaid = deal > 0 && paid >= deal
       let isConfirmed = b.status === 'confirmed'
-      let isSold = isFullyPaid && !isConfirmed
-      let isTokenPaid = p.status === 'token_paid' && !isFullyPaid
+      
+      let derivedPlotStatus = 'available'
+      if (isFullyPaid && isConfirmed) derivedPlotStatus = 'sold'
+      else if (isFullyPaid && !isConfirmed) derivedPlotStatus = 'fully_paid'
+      else if (!isFullyPaid) derivedPlotStatus = 'token_paid'
 
       let match = true
-      if (status === 'confirmed') match = isConfirmed
-      if (status === 'sold') match = isSold
-      if (status === 'token_paid') match = isTokenPaid
-      if (status === 'cancelled') match = b.status === 'cancelled'
+      if (status === 'confirmed') match = (isConfirmed && derivedPlotStatus !== 'sold')
+      if (status === 'sold') match = (derivedPlotStatus === 'sold')
+      if (status === 'fully_paid') match = (derivedPlotStatus === 'fully_paid')
+      if (status === 'token_paid') match = (derivedPlotStatus === 'token_paid')
+      if (status === 'cancelled') match = (b.status === 'cancelled')
 
       if (match) {
         const cId = clientData.id

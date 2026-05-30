@@ -60,6 +60,7 @@ export async function addPayment(formData: {
   description: string;
   transaction_id?: string;
   entity_id: string;
+  payment_type?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
@@ -90,6 +91,7 @@ export async function addPayment(formData: {
       entity_id: formData.entity_id,
       entity_type: 'client',
       transaction_type: 'credit',
+      payment_type: formData.payment_type || 'Plot payment',
       commission_amount,
       tds_amount,
     }])
@@ -143,17 +145,7 @@ export async function createBooking(formData: {
     return { success: false, error: bookingError.message }
   }
 
-  // Move plot to token_paid and link client if it was available
-  const { error: plotError } = await supabase
-    .from('plots')
-    .update({ status: 'token_paid', client_id: formData.client_id })
-    .eq('id', formData.plot_id)
-    .eq('status', 'available') // only update if still available
 
-  if (plotError) {
-    console.error('Error updating plot status:', plotError)
-    return { success: false, error: plotError.message }
-  }
 
   revalidatePath('/projects')
   return { success: true }
@@ -189,15 +181,7 @@ export async function confirmBooking(
     return { success: false, error: demoteError.message }
   }
 
-  // 3. Update plot to sold, link confirmed client
-  const { error: plotError } = await supabase
-    .from('plots')
-    .update({ status: 'sold', client_id: clientId })
-    .eq('id', plotId)
 
-  if (plotError) {
-    return { success: false, error: plotError.message }
-  }
 
   revalidatePath('/projects')
   return { success: true }
@@ -220,33 +204,7 @@ export async function cancelBooking(
     return { success: false, error: deleteError.message }
   }
 
-  // 2. Check remaining bookings on this plot
-  const { data: remaining } = await supabase
-    .from('bookings')
-    .select('id, status')
-    .eq('plot_id', plotId)
 
-  const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
-  const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
-
-  if (hasConfirmed) {
-    // Plot stays sold — confirmed booking still owns it
-    revalidatePath('/projects')
-    return { success: true }
-  }
-
-  const newStatus = hasPending ? 'token_paid' : 'available'
-  const updateData: any = { status: newStatus }
-  if (newStatus === 'available') updateData.client_id = null
-
-  const { error: plotError } = await supabase
-    .from('plots')
-    .update(updateData)
-    .eq('id', plotId)
-
-  if (plotError) {
-    return { success: false, error: plotError.message }
-  }
 
   revalidatePath('/projects')
   return { success: true }
@@ -294,46 +252,7 @@ export async function transferBooking(
     return { success: false, error: updateBookingError.message }
   }
 
-  // 4. Update new plot status
-  const { error: updateNewPlotError } = await supabase
-    .from('plots')
-    .update({ status: 'token_paid', client_id: clientId })
-    .eq('id', newPlotId)
 
-  if (updateNewPlotError) {
-    return { success: false, error: updateNewPlotError.message }
-  }
-
-  // 5. Recalculate old plot status from remaining bookings
-  const { data: remaining } = await supabase
-    .from('bookings')
-    .select('id, status')
-    .eq('plot_id', oldPlotId)
-
-  const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
-  const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
-
-  let oldPlotNewStatus = 'available'
-  const updateData: any = {}
-
-  if (hasConfirmed) {
-    oldPlotNewStatus = 'sold'
-  } else if (hasPending) {
-    oldPlotNewStatus = 'token_paid'
-  } else {
-    updateData.client_id = null
-  }
-
-  updateData.status = oldPlotNewStatus
-
-  const { error: updateOldPlotError } = await supabase
-    .from('plots')
-    .update(updateData)
-    .eq('id', oldPlotId)
-
-  if (updateOldPlotError) {
-    return { success: false, error: updateOldPlotError.message }
-  }
 
   revalidatePath('/projects')
   return { success: true }
@@ -385,19 +304,20 @@ export async function getTransferablePlotsForClient(projectId: string, clientId:
     .eq('client_id', clientId)
 
   // Merge and deduplicate by plot id, tagging partnership plots
-  const seen = new Set<string>()
+  const seenPrimary = new Set<string>()
+  const seenPartner = new Set<string>()
   const result: any[] = []
 
   ;(available || []).forEach((p: any) => {
-    if (!seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: false }) }
+    if (!seenPrimary.has(p.id)) { seenPrimary.add(p.id); result.push({ ...p, uniqueKey: p.id + '_primary', isPartnership: false }) }
   })
   ;(primaryBookings || []).forEach((b: any) => {
     const p = b.plot
-    if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: false }) }
+    if (p && !seenPrimary.has(p.id)) { seenPrimary.add(p.id); result.push({ ...p, uniqueKey: p.id + '_primary', isPartnership: false }) }
   })
   ;(partnerRows || []).forEach((row: any) => {
     const p = row.booking?.plot
-    if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: true }) }
+    if (p && !seenPartner.has(p.id)) { seenPartner.add(p.id); result.push({ ...p, uniqueKey: p.id + '_partner', isPartnership: true }) }
   })
 
   return result.sort((a: any, b: any) => {
@@ -432,9 +352,59 @@ export async function removePartnerFromBooking(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // Delete specific partner row — trigger auto-updates booking_type
-  // If this was the last partner, booking_type reverts to 'single'
-  // The booking itself stays. All payments remain on same booking_id.
+  // 1. Fetch original booking details
+  const { data: originalBooking, error: fetchErr } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('id', bookingId)
+    .single()
+
+  if (fetchErr || !originalBooking) {
+    return { success: false, error: fetchErr?.message || 'Original booking not found' }
+  }
+
+  // 2. Check if the partner already has an individual booking for this plot
+  let targetBookingId: string;
+  const { data: existingBooking } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('client_id', partnerClientId)
+    .eq('plot_id', originalBooking.plot_id)
+    .single()
+
+  if (existingBooking) {
+    targetBookingId = existingBooking.id;
+  } else {
+    // 3. Create a new individual booking for the partner (status: cancelled)
+    const { data: newBooking, error: insertErr } = await supabase
+      .from('bookings')
+      .insert([{
+        plot_id: originalBooking.plot_id,
+        client_id: partnerClientId,
+        total_amount: originalBooking.total_amount,
+        discount_amount: originalBooking.discount_amount || 0,
+        consultant_id: originalBooking.consultant_id || null,
+        commission_percent: originalBooking.commission_percent || 0,
+        status: 'cancelled',
+        booking_type: 'single'
+      }])
+      .select('id')
+      .single()
+
+    if (insertErr) return { success: false, error: insertErr.message }
+    targetBookingId = newBooking.id;
+  }
+
+  // 4. Transfer all payments made by this partner from the partnership booking to their new individual booking
+  const { error: paymentErr } = await supabase
+    .from('payments')
+    .update({ booking_id: targetBookingId })
+    .eq('booking_id', bookingId)
+    .eq('entity_id', partnerClientId)
+
+  if (paymentErr) return { success: false, error: paymentErr.message }
+
+  // 5. Delete specific partner row
   const { error } = await supabase
     .from('booking_partners')
     .delete()
@@ -483,19 +453,7 @@ export async function mergeTransferIntoPartnership(
     .eq('id', sourceBookingId)
   if (delErr) return { success: false, error: delErr.message }
 
-  // 4. Recalculate source plot status
-  const { data: remaining } = await supabase
-    .from('bookings')
-    .select('id, status')
-    .eq('plot_id', sourcePlotId)
 
-  const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
-  const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
-  const newStatus = hasConfirmed ? 'sold' : hasPending ? 'token_paid' : 'available'
-  const updateData: any = { status: newStatus }
-  if (newStatus === 'available') updateData.client_id = null
-
-  await supabase.from('plots').update(updateData).eq('id', sourcePlotId)
 
   revalidatePath('/projects')
   return { success: true }
@@ -545,18 +503,7 @@ export async function revertBooking(
     return { success: false, error: revertError.message }
   }
 
-  // 3. Update plot back to token_paid — keep client_id from the booking (not null)
-  const { error: plotError } = await supabase
-    .from('plots')
-    .update({
-      status: 'token_paid',
-      client_id: booking?.client_id || null  // maintain the link, not null
-    })
-    .eq('id', plotId)
 
-  if (plotError) {
-    return { success: false, error: plotError.message }
-  }
 
   revalidatePath('/projects')
   return { success: true }
