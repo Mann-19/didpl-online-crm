@@ -62,7 +62,7 @@ export default function RecoveryClient({ data }: { data: any[] }) {
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Recovery Report</h1>
-            <p className="text-gray-500 mt-1">Outstanding balances and pending collections.</p>
+            <p className="text-gray-500 mt-1">All clients with outstanding balances — across both pending and confirmed bookings.</p>
           </div>
           <button 
             onClick={handleExport}
@@ -125,6 +125,7 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                 <tr>
                   <th className="px-5 py-3 text-left">Client</th>
                   <th className="px-5 py-3 text-left">Plot</th>
+                  <th className="px-5 py-3 text-left">Booking Status</th>
                   <th className="px-5 py-3 text-right">Deal Value</th>
                   <th className="px-5 py-3 text-right text-orange-600">Discount</th>
                   <th className="px-5 py-3 text-right text-emerald-600">Paid</th>
@@ -147,6 +148,15 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                       <div className="text-xs text-gray-500">{r.project_name}</div>
                       <div className="text-xs text-gray-400">Booked: {fmt(r.booking_date)}</div>
                     </td>
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${
+                        r.booking_status === 'confirmed'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {r.booking_status}
+                      </span>
+                    </td>
                     <td className="px-5 py-4 text-right font-medium text-gray-700">₹{formatNumber(r.total_amount)}</td>
                     <td className="px-5 py-4 text-right font-medium text-orange-600">₹{formatNumber(r.discount_amount)}</td>
                     <td className="px-5 py-4 text-right font-medium text-emerald-600">₹{formatNumber(r.amount_paid)}</td>
@@ -158,7 +168,7 @@ export default function RecoveryClient({ data }: { data: any[] }) {
               </tbody>
               <tfoot className="bg-gray-50 border-t">
                 <tr>
-                  <td colSpan={4} className="px-5 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Records</td>
+                  <td colSpan={5} className="px-5 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Records</td>
                   <td className="px-5 py-3 text-right text-sm font-bold text-emerald-700">₹{formatNumber(totalPaid)}</td>
                   <td className="px-5 py-3 text-right text-sm font-bold text-red-700">₹{formatNumber(totalPending)}</td>
                 </tr>

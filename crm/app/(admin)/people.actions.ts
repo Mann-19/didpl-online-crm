@@ -36,15 +36,35 @@ export async function getClients() {
   })
 }
 
+// Generate human-readable entity codes (e.g. CLI-MA-3821)
 function generateEntityCode(prefix: string, name: string) {
   const initials = (name || 'XX').substring(0, 2).toUpperCase()
   const randomNum = Math.floor(1000 + Math.random() * 9000)
   return `${prefix}-${initials}-${randomNum}`
 }
 
+// Generate a unique code with collision retry (up to 5 attempts)
+async function generateUniqueEntityCode(
+  supabase: any,
+  prefix: string,
+  name: string,
+  table: string,
+  column: string
+): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateEntityCode(prefix, name)
+    const { count } = await supabase
+      .from(table)
+      .select('*', { count: 'exact', head: true })
+      .eq(column, code)
+    if (count === 0) return code
+  }
+  throw new Error(`Could not generate unique ${prefix} code after 5 attempts`)
+}
+
 export async function addClient(formData: any) {
   const supabase = await createClient()
-  const client_code = generateEntityCode('CLI', formData.name)
+  const client_code = await generateUniqueEntityCode(supabase, 'CLI', formData.name, 'clients', 'client_code')
   const { error } = await supabase.from('clients').insert([{ ...formData, client_code }])
   if (error) return { success: false, error: error.message }
   revalidatePath('/clients/list')
@@ -60,8 +80,11 @@ export async function getClientById(clientId: string) {
     .select(`
       *,
       bookings!bookings_client_id_fkey (
-        id, status, total_amount, discount_amount, booking_date, partner_client_id,
-        partner:partner_client_id ( id, name ),
+        id, status, total_amount, discount_amount, booking_date, booking_type,
+        booking_partners (
+          client_id,
+          client:client_id ( id, name )
+        ),
         plots ( id, plot_number, project_id, projects ( id, name ) ),
         payments ( id, amount, payment_date, payment_mode, transaction_id, description, entity_id )
       )
@@ -70,18 +93,28 @@ export async function getClientById(clientId: string) {
     .single()
   if (error) { console.error('Error fetching client:', error); return null }
 
-  // Partnership bookings: this client was added as a partner by another client
+  // Partnership bookings: this client was added as a partner on another booking
   const { data: partnerRows } = await supabase
-    .from('bookings')
+    .from('booking_partners')
     .select(`
-      id, status, total_amount, discount_amount, booking_date, partner_client_id,
-      client:client_id ( id, name ),
-      plots ( id, plot_number, project_id, projects ( id, name ) ),
-      payments ( id, amount, payment_date, payment_mode, transaction_id, description, entity_id )
+      booking:booking_id (
+        id, status, total_amount, discount_amount, booking_date, booking_type,
+        client:client_id ( id, name ),
+        booking_partners (
+          client_id,
+          client:client_id ( id, name )
+        ),
+        plots ( id, plot_number, project_id, projects ( id, name ) ),
+        payments ( id, amount, payment_date, payment_mode, transaction_id, description, entity_id )
+      )
     `)
-    .eq('partner_client_id', clientId)
+    .eq('client_id', clientId)
 
-  const partnerBookings = (partnerRows || []).map((b: any) => ({ ...b, isPartnership: true }))
+  const partnerBookings = (partnerRows || [])
+    .map((row: any) => row.booking)
+    .filter(Boolean)
+    .map((b: any) => ({ ...b, isPartnership: true }))
+
   const primaryBookings = (data.bookings || []).map((b: any) => ({ ...b, isPartnership: false }))
 
   return { ...data, bookings: [...primaryBookings, ...partnerBookings] }
@@ -109,30 +142,28 @@ export async function getConsultants() {
 
 export async function addConsultant(formData: any) {
   const supabase = await createClient()
-  
-  const consultant_code = generateEntityCode('CONS', formData.name)
-  
-  // Destructure and map fields to match schema
-  const { 
-    bank_account, 
+
+  const consultant_code = await generateUniqueEntityCode(supabase, 'CONS', formData.name, 'consultants', 'consultant_code')
+
+  const {
+    bank_account,
     account_number,
-    residential_address, 
-    residential_city, 
-    residential_state, 
+    residential_address,
+    residential_city,
+    residential_state,
     residential_pincode,
-    ...rest 
+    ...rest
   } = formData
 
   const insertData = {
     ...rest,
     consultant_code,
     account_number: account_number || bank_account,
-    address: residential_address 
+    address: residential_address
       ? `${residential_address}${residential_city ? ', ' + residential_city : ''}${residential_state ? ', ' + residential_state : ''}${residential_pincode ? ' - ' + residential_pincode : ''}`
       : undefined
   }
-  
-  // Remove fields that don't exist in schema
+
   delete (insertData as any).gender
   delete (insertData as any).birthdate
 
@@ -148,10 +179,10 @@ export async function getConsultantById(consultantId: string) {
     .select(`
       *,
       bookings (
-        id, status, total_amount, discount_amount, commission_amount, booking_date,
+        id, status, total_amount, discount_amount, booking_date,
         client:client_id ( id, name, phone ),
         plot:plot_id ( id, plot_number, project:project_id ( id, name ) ),
-        payments ( id, amount, payment_date, payment_mode, description, entity_type )
+        payments ( id, amount, payment_date, payment_mode, description, entity_type, commission_amount, tds_amount )
       )
     `)
     .eq('id', consultantId)
@@ -184,6 +215,7 @@ export async function addConsultantPayout(formData: {
   payment_date: string;
   payment_mode: string;
   notes: string;
+  client_payment_id?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { error } = await supabase.from('payments').insert([{
@@ -194,7 +226,7 @@ export async function addConsultantPayout(formData: {
     payment_date: formData.payment_date,
     payment_mode: formData.payment_mode,
     description: formData.notes || 'Commission Payout',
-    receipt_type: 'payment'
+    transaction_id: formData.client_payment_id || null,
   }])
   if (error) return { success: false, error: error.message }
   revalidatePath(`/consultants/${formData.consultant_id}`)
@@ -224,7 +256,7 @@ export async function getEmployees() {
 
 export async function addEmployee(formData: any): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
-  const employee_code = generateEntityCode('EMP', formData.name || 'EMP')
+  const employee_code = await generateUniqueEntityCode(supabase, 'EMP', formData.name || 'EMP', 'employees', 'employee_code')
   const { error } = await supabase.from('employees').insert([{
     employee_code,
     designation: formData.designation || null,
@@ -244,13 +276,13 @@ export async function addEmployee(formData: any): Promise<{ success: boolean; er
 
 // -- MASTER ADMIN ONLY --------------------------------------------------------
 
-// Hard delete a client and all related data (bookings, payments cascade via DB or manual)
+// Hard delete a client and all related data
 export async function deleteClient(
   clientId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // Fetch all bookings for this client to get payment ids
+  // Fetch all primary bookings for this client
   const { data: bookings } = await supabase
     .from('bookings')
     .select('id, plot_id')
@@ -259,10 +291,10 @@ export async function deleteClient(
   if (bookings && bookings.length > 0) {
     const bookingIds = bookings.map((b: any) => b.id)
 
-    // Delete all payments for those bookings
+    // Delete payments tied to those bookings
     await supabase.from('payments').delete().in('booking_id', bookingIds)
 
-    // Reset the plots that were associated
+    // Reset plots that were associated with this client
     for (const booking of bookings) {
       await supabase
         .from('plots')
@@ -271,14 +303,14 @@ export async function deleteClient(
         .eq('client_id', clientId)
     }
 
-    // Delete bookings
+    // Delete bookings (booking_partners rows CASCADE automatically via FK)
     await supabase.from('bookings').delete().eq('client_id', clientId)
   }
 
-  // Delete any client-level payments (entity_type = 'client')
+  // Delete any direct client-level payments (entity_type = 'client')
   await supabase.from('payments').delete().eq('entity_id', clientId).eq('entity_type', 'client')
 
-  // Delete the client
+  // Delete the client record
   const { error } = await supabase.from('clients').delete().eq('id', clientId)
   if (error) return { success: false, error: error.message }
 
@@ -286,7 +318,6 @@ export async function deleteClient(
   return { success: true }
 }
 
-// Edit an individual client payment record
 export async function updateClientPayment(
   paymentId: string,
   fields: Partial<{
@@ -304,7 +335,6 @@ export async function updateClientPayment(
   return { success: true }
 }
 
-// Delete an individual client payment record
 export async function deleteClientPayment(
   paymentId: string
 ): Promise<{ success: boolean; error?: string }> {
@@ -315,7 +345,6 @@ export async function deleteClientPayment(
   return { success: true }
 }
 
-// Edit an individual consultant payout record
 export async function updateConsultantPayout(
   payoutId: string,
   fields: Partial<{
@@ -332,7 +361,6 @@ export async function updateConsultantPayout(
   return { success: true }
 }
 
-// Delete an individual consultant payout record
 export async function deleteConsultantPayout(
   payoutId: string
 ): Promise<{ success: boolean; error?: string }> {

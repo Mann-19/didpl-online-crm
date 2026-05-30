@@ -20,9 +20,14 @@ export async function getPlotDetails(plotId: string, projectId?: string) {
       bookings (
         *,
         client:client_id ( id, name, phone, email, client_code ),
-        partner:partner_client_id ( id, name, phone, email, client_code ),
+        booking_partners (
+          client_id,
+          added_at,
+          client:client_id ( id, name, phone, email, client_code )
+        ),
         consultant:consultant_id ( id, name ),
-        payments ( * )
+        payments ( * ),
+        booking_fees ( * )
       )
     `)
 
@@ -32,7 +37,6 @@ export async function getPlotDetails(plotId: string, projectId?: string) {
   } else if (projectId) {
     query = query.eq('plot_number', plotId).eq('project_id', projectId)
   } else {
-    // Can't look up without projectId for a non-UUID plotId
     console.error('getPlotDetails: non-UUID plotId requires projectId')
     return null
   }
@@ -59,14 +63,19 @@ export async function addPayment(formData: {
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // Fetch booking to check commission
-  const { data: booking } = await supabase.from('bookings').select('commission_percent, consultant_id, commission_amount, tds_amount').eq('id', formData.booking_id).single()
+  // Fetch booking to get commission_percent (commission/TDS now calculated per-payment)
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('commission_percent, consultant_id')
+    .eq('id', formData.booking_id)
+    .single()
 
-  let commission_amount = 0;
-  let tds_amount = 0;
-  if (booking && booking.consultant_id && booking.commission_percent) {
-    commission_amount = formData.amount * (booking.commission_percent / 100);
-    tds_amount = commission_amount * 0.02; // Fixed 2% TDS
+  // Calculate commission and TDS for this individual payment
+  let commission_amount = 0
+  let tds_amount = 0
+  if (booking?.consultant_id && booking?.commission_percent) {
+    commission_amount = formData.amount * (booking.commission_percent / 100)
+    tds_amount = commission_amount * 0.02 // Fixed 2% TDS
   }
 
   const { error } = await supabase
@@ -81,22 +90,13 @@ export async function addPayment(formData: {
       entity_id: formData.entity_id,
       entity_type: 'client',
       transaction_type: 'credit',
-      receipt_type: 'payment',
       commission_amount,
-      tds_amount
+      tds_amount,
     }])
 
   if (error) {
     console.error('Error adding payment:', error)
     return { success: false, error: error.message }
-  }
-
-  // Update booking aggregates
-  if (commission_amount > 0) {
-    await supabase.from('bookings').update({
-      commission_amount: ((booking as any)?.commission_amount || 0) + commission_amount,
-      tds_amount: ((booking as any)?.tds_amount || 0) + tds_amount
-    }).eq('id', formData.booking_id);
   }
 
   revalidatePath('/projects')
@@ -113,6 +113,18 @@ export async function createBooking(formData: {
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
+  // Guard: reject if plot already has a confirmed booking
+  const { data: existingConfirmed } = await supabase
+    .from('bookings')
+    .select('id')
+    .eq('plot_id', formData.plot_id)
+    .eq('status', 'confirmed')
+    .limit(1)
+
+  if (existingConfirmed && existingConfirmed.length > 0) {
+    return { success: false, error: 'This plot already has a confirmed booking and cannot accept new bookings.' }
+  }
+
   const { error: bookingError } = await supabase
     .from('bookings')
     .insert([{
@@ -122,7 +134,8 @@ export async function createBooking(formData: {
       discount_amount: formData.discount_amount || 0,
       consultant_id: formData.consultant_id || null,
       commission_percent: formData.commission_percent || 0,
-      status: 'pending'  // always start as negotiation/pending
+      status: 'pending',
+      booking_type: 'single',
     }])
 
   if (bookingError) {
@@ -137,7 +150,6 @@ export async function createBooking(formData: {
     .eq('id', formData.plot_id)
     .eq('status', 'available') // only update if still available
 
-  // If plot was already token_paid/partially_paid, that's fine — ignore the no-op
   if (plotError) {
     console.error('Error updating plot status:', plotError)
     return { success: false, error: plotError.message }
@@ -147,7 +159,7 @@ export async function createBooking(formData: {
   return { success: true }
 }
 
-// Confirm a booking as the winner — demote all other bookings on same plot
+// Confirm a booking as the winner — cancel all other pending bookings on same plot
 export async function confirmBooking(
   bookingId: string,
   plotId: string,
@@ -198,7 +210,7 @@ export async function cancelBooking(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // 1. Delete the booking
+  // 1. Delete the booking (booking_partners rows cascade-delete automatically)
   const { error: deleteError } = await supabase
     .from('bookings')
     .delete()
@@ -217,21 +229,19 @@ export async function cancelBooking(
   const hasConfirmed = (remaining || []).some((b: any) => b.status === 'confirmed')
   const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
 
-  let newStatus = 'available'
-  let newClientId = null
-
   if (hasConfirmed) {
-    newStatus = 'sold'
-    // Keep existing client_id — no change needed
+    // Plot stays sold — confirmed booking still owns it
     revalidatePath('/projects')
     return { success: true }
-  } else if (hasPending) {
-    newStatus = 'token_paid'
   }
+
+  const newStatus = hasPending ? 'token_paid' : 'available'
+  const updateData: any = { status: newStatus }
+  if (newStatus === 'available') updateData.client_id = null
 
   const { error: plotError } = await supabase
     .from('plots')
-    .update({ status: newStatus, client_id: newClientId })
+    .update(updateData)
     .eq('id', plotId)
 
   if (plotError) {
@@ -249,7 +259,7 @@ export async function transferBooking(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // 1. Get the current booking details to find old plot ID and status
+  // 1. Get current booking details
   const { data: booking, error: fetchError } = await supabase
     .from('bookings')
     .select('plot_id, status, client_id')
@@ -262,9 +272,8 @@ export async function transferBooking(
 
   const oldPlotId = booking.plot_id
   const clientId = booking.client_id
-  const bookingStatus = booking.status
 
-  // 1.5 Get new plot details
+  // 2. Get new plot's list price
   const { data: newPlot, error: newPlotError } = await supabase
     .from('plots')
     .select('price')
@@ -275,7 +284,7 @@ export async function transferBooking(
     return { success: false, error: newPlotError?.message || 'New plot not found' }
   }
 
-  // 2. Update booking to point to new plot
+  // 3. Update booking to point to new plot, reset total_amount to new plot's list price
   const { error: updateBookingError } = await supabase
     .from('bookings')
     .update({ plot_id: newPlotId, total_amount: newPlot.price })
@@ -285,22 +294,17 @@ export async function transferBooking(
     return { success: false, error: updateBookingError.message }
   }
 
-  // 3. Update new plot's status based on booking status
-  // If it's confirmed, the plot becomes sold (wait, based on user feedback, sold is 100% payment, but the prompt says "Confirm status is just a way to fix that client to that plot". We will just set it to token_paid or partially_paid or keep whatever status `confirmBooking` does. Since the booking is being transferred, and the instruction says "Confirm status is just a way to fix that client to that plot", we should update the client_id and status if needed. Actually, `createBooking` sets status to 'token_paid' and links client_id. If transferred, we can set it to 'token_paid' if pending, and 'sold' if confirmed (since we are matching existing logic).)
-  // Wait, the user said "only pending" bookings can be transferred!
-  // So bookingStatus is guaranteed to be 'pending'.
-  const newStatus = 'token_paid' // for pending bookings
-
+  // 4. Update new plot status
   const { error: updateNewPlotError } = await supabase
     .from('plots')
-    .update({ status: newStatus, client_id: clientId })
+    .update({ status: 'token_paid', client_id: clientId })
     .eq('id', newPlotId)
 
   if (updateNewPlotError) {
     return { success: false, error: updateNewPlotError.message }
   }
 
-  // 4. Recalculate old plot's status
+  // 5. Recalculate old plot status from remaining bookings
   const { data: remaining } = await supabase
     .from('bookings')
     .select('id, status')
@@ -310,24 +314,17 @@ export async function transferBooking(
   const hasPending = (remaining || []).some((b: any) => b.status === 'pending')
 
   let oldPlotNewStatus = 'available'
-  let oldPlotNewClientId = null
+  const updateData: any = {}
 
   if (hasConfirmed) {
-    // Keep existing status/client as is, but we might not know who the confirmed client is here. 
-    // Usually if there's a confirmed booking, it's sold.
     oldPlotNewStatus = 'sold'
-    // We don't change client_id because it should be linked to the confirmed booking's client
   } else if (hasPending) {
     oldPlotNewStatus = 'token_paid'
-    // There are other pending bookings, so leave client_id as whatever it was, 
-    // or maybe the first pending booking's client? The system doesn't strictly track which pending client is linked to the plot.
-  }
-
-  // Only update client_id if it's becoming available
-  const updateData: any = { status: oldPlotNewStatus }
-  if (oldPlotNewStatus === 'available') {
+  } else {
     updateData.client_id = null
   }
+
+  updateData.status = oldPlotNewStatus
 
   const { error: updateOldPlotError } = await supabase
     .from('plots')
@@ -362,7 +359,7 @@ export async function getAvailablePlots(projectId: string) {
 
 // Get plots transferable for a specific client:
 // - Available plots in the project
-// - Plots where the client already has a booking (own or as partner) — so they can merge
+// - Plots where client already has a booking (own or as partner) — for merge
 export async function getTransferablePlotsForClient(projectId: string, clientId: string) {
   const supabase = await createClient()
 
@@ -374,18 +371,18 @@ export async function getTransferablePlotsForClient(projectId: string, clientId:
     .eq('status', 'available')
     .order('plot_number', { ascending: true })
 
-  // 2. Plots where this client is primary or partner (token_paid / sold)
+  // 2. Plots where this client is the primary client on active bookings
   const { data: primaryBookings } = await supabase
     .from('bookings')
     .select('plot:plot_id ( id, plot_number, area_sqyd, price, status )')
     .eq('client_id', clientId)
     .in('status', ['pending', 'confirmed'])
 
-  const { data: partnerBookings } = await supabase
-    .from('bookings')
-    .select('plot:plot_id ( id, plot_number, area_sqyd, price, status )')
-    .eq('partner_client_id', clientId)
-    .in('status', ['pending', 'confirmed'])
+  // 3. Plots where this client is a partner (via booking_partners)
+  const { data: partnerRows } = await supabase
+    .from('booking_partners')
+    .select('booking:booking_id ( plot:plot_id ( id, plot_number, area_sqyd, price, status ) )')
+    .eq('client_id', clientId)
 
   // Merge and deduplicate by plot id, tagging partnership plots
   const seen = new Set<string>()
@@ -398,8 +395,8 @@ export async function getTransferablePlotsForClient(projectId: string, clientId:
     const p = b.plot
     if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: false }) }
   })
-  ;(partnerBookings || []).forEach((b: any) => {
-    const p = b.plot
+  ;(partnerRows || []).forEach((row: any) => {
+    const p = row.booking?.plot
     if (p && !seen.has(p.id)) { seen.add(p.id); result.push({ ...p, isPartnership: true }) }
   })
 
@@ -417,24 +414,33 @@ export async function addPartnerToBooking(
   partnerClientId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
+
+  // Insert into junction table — trigger auto-updates booking_type to 'partnership'
   const { error } = await supabase
-    .from('bookings')
-    .update({ partner_client_id: partnerClientId })
-    .eq('id', bookingId)
+    .from('booking_partners')
+    .insert([{ booking_id: bookingId, client_id: partnerClientId }])
+
   if (error) return { success: false, error: error.message }
   revalidatePath('/projects')
   return { success: true }
 }
 
-// Remove the partner from a booking
+// Remove a specific partner from a booking
 export async function removePartnerFromBooking(
-  bookingId: string
+  bookingId: string,
+  partnerClientId: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
+
+  // Delete specific partner row — trigger auto-updates booking_type
+  // If this was the last partner, booking_type reverts to 'single'
+  // The booking itself stays. All payments remain on same booking_id.
   const { error } = await supabase
-    .from('bookings')
-    .update({ partner_client_id: null })
-    .eq('id', bookingId)
+    .from('booking_partners')
+    .delete()
+    .eq('booking_id', bookingId)
+    .eq('client_id', partnerClientId)
+
   if (error) return { success: false, error: error.message }
   revalidatePath('/projects')
   return { success: true }
@@ -470,7 +476,7 @@ export async function mergeTransferIntoPartnership(
     if (payErr) return { success: false, error: payErr.message }
   }
 
-  // 3. Delete source booking
+  // 3. Delete source booking (booking_partners rows cascade-delete automatically)
   const { error: delErr } = await supabase
     .from('bookings')
     .delete()
@@ -522,7 +528,14 @@ export async function revertBooking(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
-  // 1. Set the booking back to pending
+  // 1. Fetch the booking's client to maintain the plot link correctly
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('client_id')
+    .eq('id', bookingId)
+    .single()
+
+  // 2. Set the booking back to pending
   const { error: revertError } = await supabase
     .from('bookings')
     .update({ status: 'pending' })
@@ -532,10 +545,13 @@ export async function revertBooking(
     return { success: false, error: revertError.message }
   }
 
-  // 2. Update plot to token_paid, remove linked client
+  // 3. Update plot back to token_paid — keep client_id from the booking (not null)
   const { error: plotError } = await supabase
     .from('plots')
-    .update({ status: 'token_paid', client_id: null })
+    .update({
+      status: 'token_paid',
+      client_id: booking?.client_id || null  // maintain the link, not null
+    })
     .eq('id', plotId)
 
   if (plotError) {
@@ -548,7 +564,7 @@ export async function revertBooking(
 
 // -- MASTER ADMIN ONLY --------------------------------------------------------
 
-// Edit core plot fields (plot_number, area_sqyd, price, status)
+// Edit core plot fields
 export async function updatePlot(
   plotId: string,
   fields: Partial<{
@@ -565,7 +581,7 @@ export async function updatePlot(
   return { success: true }
 }
 
-// Edit a booking financial / status fields
+// Edit a booking's financial / status fields
 export async function updateBooking(
   bookingId: string,
   fields: Partial<{
@@ -606,6 +622,29 @@ export async function deletePayment(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
   const { error } = await supabase.from('payments').delete().eq('id', paymentId)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/projects')
+  return { success: true }
+}
+
+export async function deleteChangeRequest(id: string) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('pending_changes').delete().eq('id', id)
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/dashboard')
+  return { success: true }
+}
+
+export async function updateBookingFees(bookingId: string, fees: { stampDuty: number, legal: number, maintenance: number }) {
+  const supabase = await createClient()
+  const { error } = await supabase.from('booking_fees').upsert({
+    booking_id: bookingId,
+    stamp_duty: fees.stampDuty,
+    legal_fees: fees.legal,
+    maintenance_fees: fees.maintenance,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'booking_id' })
+  
   if (error) return { success: false, error: error.message }
   revalidatePath('/projects')
   return { success: true }

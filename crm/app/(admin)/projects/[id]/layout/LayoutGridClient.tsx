@@ -30,26 +30,39 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
     // 1. Process Plot Data
     const dataMap: any = {};
     plots?.forEach((p: any) => {
-      // Calculate payment percentage based on active booking
-      const activeBooking = p.bookings?.[0];
-      const totalAmount = activeBooking ? (activeBooking.total_amount - (activeBooking.discount_amount || 0)) : p.price;
+      // Pick the most relevant active booking:
+      // Priority: confirmed first (plot is sold), then pending (token paid), ignore cancelled
+      const allBookings: any[] = p.bookings || [];
+      const activeBooking =
+        allBookings.find((b: any) => b.status === 'confirmed') ||
+        allBookings.find((b: any) => b.status === 'pending') ||
+        null;
+
+      const totalAmount = activeBooking
+        ? (activeBooking.total_amount - (activeBooking.discount_amount || 0))
+        : p.price;
       const payments = activeBooking?.payments || [];
       const amountPaid = payments.reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0);
-      
-      const percent = totalAmount ? (amountPaid / totalAmount) * 100 : 0;
+      const percent = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
+
+      // Prefer the active booking's client name over the stale plot.client_id join
+      const clientName =
+        activeBooking?.client?.name ||
+        p.clients?.name ||
+        "—";
 
       const plotData = {
         plot: p.plot_number,
         area: p.area_sqyd ? `${p.area_sqyd} sq.yd` : "N/A",
         status: p.status === "sold" ? "Sold" :
-            p.status === "token_paid" || p.status === "partially_paid" ? "Token Paid" : "Available",
+            p.status === "token_paid" ? "Token Paid" : "Available",
         paymentPercentage: Math.round(percent),
-        price: `₹${parseInt(totalAmount).toLocaleString("en-IN")}`,
-        amountPaid: `₹${parseInt(amountPaid).toLocaleString("en-IN")}`,
-        clientName: p.clients?.name || "—",
+        price: `₹${parseInt(String(totalAmount)).toLocaleString("en-IN")}`,
+        amountPaid: `₹${parseInt(String(amountPaid)).toLocaleString("en-IN")}`,
+        clientName,
         colorClass:
           p.status === "sold" ? "status-sold" :
-            p.status === "token_paid" || p.status === "partially_paid" ? "status-token" : "status-available",
+            p.status === "token_paid" ? "status-token" : "status-available",
       };
 
       dataMap[p.plot_number] = plotData;
@@ -139,8 +152,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
       let badgeColor = "bg-gray-100 text-gray-800";
       if (data.status === 'Sold') badgeColor = "bg-rose-100 text-rose-700 border-rose-200";
       if (data.status === 'Available') badgeColor = "bg-emerald-100 text-emerald-700 border-emerald-200";
-      if (data.status === 'Token') badgeColor = "bg-yellow-100 text-yellow-700 border-yellow-200";
-      if (data.status === 'Partial') badgeColor = "bg-orange-100 text-orange-700 border-orange-200";
+      if (data.status === 'Token Paid') badgeColor = "bg-yellow-100 text-yellow-700 border-yellow-200";
 
       detailsBar.innerHTML = `
         <div class="flex items-center gap-6 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -213,8 +225,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
       <div className="px-6 py-4 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 md:gap-6 shrink-0 border-b border-gray-100 bg-white z-20 relative mt-4">
         <div className="flex flex-wrap items-center gap-4 md:gap-6 pr-0 md:pr-6 md:border-r border-gray-100 w-full md:w-auto">
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-emerald-500 bg-white"></div><span className="text-xs font-medium text-gray-600">Available</span></div>
-          <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-yellow-400 bg-yellow-50"></div><span className="text-xs font-medium text-gray-600">Token</span></div>
-          <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-orange-400 bg-orange-50"></div><span className="text-xs font-medium text-gray-600">Partial</span></div>
+          <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-yellow-400 bg-yellow-50"></div><span className="text-xs font-medium text-gray-600">Token Paid</span></div>
           <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-rose-500 bg-rose-50"></div><span className="text-xs font-medium text-gray-600">Sold</span></div>
           {(project.name === 'Dholera Homes 3' || project.name?.toLowerCase().includes('aerotown residency')) && (
             <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-sm border border-slate-300 bg-slate-100"></div><span className="text-xs font-medium text-gray-600">Restricted</span></div>

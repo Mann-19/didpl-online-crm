@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 // ─────────────────────────────────────────────
 // GENERAL LEDGER: all payments across all entities
@@ -11,7 +12,7 @@ export async function getLedger() {
     .from('payments')
     .select(`
       id, amount, payment_date, payment_mode, transaction_type,
-      description, entity_type, receipt_type,
+      description, entity_type,
       booking:booking_id (
         client:client_id ( id, name, phone ),
         plot:plot_id ( plot_number, project:project_id ( name ) )
@@ -29,7 +30,6 @@ export async function getLedger() {
     transaction_type: p.transaction_type,
     description: p.description,
     entity_type: p.entity_type,
-    receipt_type: p.receipt_type,
     client_name: p.booking?.client?.name || null,
     plot_number: p.booking?.plot?.plot_number || null,
     project_name: p.booking?.plot?.project?.name || null,
@@ -37,7 +37,9 @@ export async function getLedger() {
 }
 
 // ─────────────────────────────────────────────
-// RECOVERY REPORT: pending balances per booking
+// RECOVERY REPORT: all clients with outstanding balance
+// Covers both pending (token_paid plots) and confirmed (sold plots) bookings
+// where the client hasn't fully paid yet.
 // ─────────────────────────────────────────────
 export async function getRecoveryReport() {
   const supabase = await createClient()
@@ -68,61 +70,75 @@ export async function getRecoveryReport() {
         plot_number: b.plot?.plot_number || '?',
         project_name: b.plot?.project?.name || '?',
         booking_date: b.booking_date,
+        booking_status: b.status,
         total_amount: deal,
         amount_paid: paid,
         discount_amount: discount,
         balance_due: balance,
-        status: b.status,
       }
     })
     .filter((r: any) => r.balance_due > 0)
 }
 
+
 // ─────────────────────────────────────────────
-// COMMISSION REPORT: consultant commission per booking
+// COMMISSION REPORT: per-payment commission rows
+// Each row = one client payment that generated commission for the consultant
 // ─────────────────────────────────────────────
 export async function getCommissionReport() {
   const supabase = await createClient()
+
+  // Fetch all client-side payments that have commission attached
   const { data, error } = await supabase
-    .from('bookings')
+    .from('payments')
     .select(`
-      id, commission_amount, commission_percent, booking_date, status, total_amount,
-      client:client_id ( name ),
-      consultant:consultant_id ( id, name, consultant_code ),
-      plot:plot_id ( plot_number, project:project_id ( name ) ),
-      payments ( id, amount, payment_date, payment_mode, entity_type )
+      id, amount, payment_date, payment_mode, commission_amount, tds_amount,
+      booking:booking_id (
+        id, commission_percent, status,
+        client:client_id ( id, name ),
+        consultant:consultant_id ( id, name, consultant_code ),
+        plot:plot_id ( plot_number, project:project_id ( name ) )
+      )
     `)
-    .not('consultant_id', 'is', null)
-    .neq('status', 'cancelled')
-    .order('booking_date', { ascending: false })
+    .eq('entity_type', 'client')
+    .eq('transaction_type', 'credit')
+    .gt('commission_amount', 0)
+    .order('payment_date', { ascending: false })
 
   if (error) { console.error('getCommissionReport error:', error); return [] }
 
-  return (data || []).map((b: any) => {
-    const commissionEarned = Number(b.commission_amount) || 0
-    const tds = commissionEarned * 0.02
-    const net = commissionEarned - tds
-    const consultantPayouts = (b.payments || [])
-      .filter((p: any) => p.entity_type === 'consultant')
-      .reduce((s: number, p: any) => s + Number(p.amount), 0)
+  // Fetch all payouts to check which ones are already paid
+  const { data: payouts } = await supabase
+    .from('payments')
+    .select('transaction_id')
+    .eq('entity_type', 'consultant')
+    .eq('transaction_type', 'debit')
+    .not('transaction_id', 'is', null)
 
+  const paidOutIds = new Set((payouts || []).map((p: any) => p.transaction_id))
+
+  return (data || []).map((p: any) => {
+    const b = p.booking
+    const commission = Number(p.commission_amount) || 0
+    const tds = Number(p.tds_amount) || 0
     return {
-      booking_id: b.id,
-      booking_date: b.booking_date,
-      status: b.status,
-      client_name: b.client?.name || '—',
-      plot_number: b.plot?.plot_number || '?',
-      project_name: b.plot?.project?.name || '?',
-      consultant_name: b.consultant?.name || '—',
-      consultant_code: b.consultant?.consultant_code || '—',
-      consultant_id: b.consultant?.id,
-      deal_value: Number(b.total_amount) || 0,
-      commission_rate: Number(b.commission_percent) || 0,
-      commission_earned: commissionEarned,
-      tds,
-      net_payable: net,
-      paid_out: consultantPayouts,
-      balance_due: net - consultantPayouts,
+      payment_id: p.id,
+      booking_id: b?.id,
+      payment_date: p.payment_date,
+      payment_mode: p.payment_mode,
+      payment_amount: Number(p.amount) || 0,
+      commission_rate: Number(b?.commission_percent) || 0,
+      commission_amount: commission,
+      tds_amount: tds,
+      net_payable: commission - tds,
+      consultant_id: b?.consultant?.id,
+      consultant_name: b?.consultant?.name || '—',
+      consultant_code: b?.consultant?.consultant_code || '—',
+      client_name: b?.client?.name || '—',
+      plot_number: b?.plot?.plot_number || '?',
+      project_name: b?.plot?.project?.name || '?',
+      booking_status: b?.status || '—',
+      is_paid_out: paidOutIds.has(p.id)
     }
   })
 }
@@ -135,10 +151,11 @@ export async function getBookingReport() {
   const { data, error } = await supabase
     .from('bookings')
     .select(`
-      id, booking_code, total_amount, discount_amount, booking_date, status,
+      id, booking_code, total_amount, discount_amount, booking_date, status, booking_type,
       client:client_id ( name, phone, client_code ),
       plot:plot_id ( plot_number, area_sqyd, project:project_id ( name ) ),
       consultant:consultant_id ( name ),
+      booking_partners ( client:client_id ( name ) ),
       payments ( amount )
     `)
     .neq('status', 'cancelled')
@@ -150,14 +167,17 @@ export async function getBookingReport() {
     const total = Number(b.total_amount) || 0
     const discount = Number(b.discount_amount) || 0
     const paid = (b.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0)
+    const partnerNames = (b.booking_partners || []).map((bp: any) => bp.client?.name).filter(Boolean)
 
     return {
       id: b.id,
       booking_code: b.booking_code,
       booking_date: b.booking_date,
       status: b.status,
+      booking_type: b.booking_type,
       client_name: b.client?.name || 'Unknown',
       client_phone: b.client?.phone || '',
+      partner_names: partnerNames,
       plot_number: b.plot?.plot_number || '?',
       project_name: b.plot?.project?.name || '?',
       area_sqyd: b.plot?.area_sqyd || 0,
@@ -182,7 +202,8 @@ export async function getReceiptReport() {
       id, receipt_no, amount, payment_date, payment_mode, description, transaction_id,
       booking:booking_id (
         client:client_id ( name, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
-        plot:plot_id ( plot_number, project:project_id ( name ) )
+        plot:plot_id ( plot_number, project:project_id ( name ) ),
+        booking_partners ( client:client_id ( name ) )
       )
     `)
     .eq('transaction_type', 'credit')
@@ -207,6 +228,7 @@ export async function getReceiptReport() {
     client_code: p.booking?.client?.client_code || '',
     plot_number: p.booking?.plot?.plot_number || '?',
     project_name: p.booking?.plot?.project?.name || '?',
+    partner_names: (p.booking?.booking_partners || []).map((bp: any) => bp.client?.name).filter(Boolean),
   }))
 }
 

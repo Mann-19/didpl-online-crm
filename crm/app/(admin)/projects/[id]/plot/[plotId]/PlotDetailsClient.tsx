@@ -13,7 +13,8 @@ import {
   cancelBooking, updateBookingDiscount, revertBooking,
   updatePlot, updateBooking, updatePayment, deletePayment,
   transferBooking, getTransferablePlotsForClient,
-  addPartnerToBooking, removePartnerFromBooking, mergeTransferIntoPartnership
+  addPartnerToBooking, removePartnerFromBooking, mergeTransferIntoPartnership,
+  updateBookingFees
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -54,6 +55,31 @@ export default function PlotDetailsClient({
   const [isMergeTransfer, setIsMergeTransfer] = useState(false);
   const [mergeTargetBookingId, setMergeTargetBookingId] = useState<string | null>(null);
 
+  // Fees calculation state (UI only)
+  const [showFeesModal, setShowFeesModal] = useState(false);
+  const [activeFeeBookingId, setActiveFeeBookingId] = useState<string | null>(null);
+  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: number, legal: number, maintenance: number }>>({});
+  
+  // Sync state with props when data is refreshed
+  useEffect(() => {
+    const initialFees: Record<string, any> = {};
+    (initialPlot?.bookings || []).forEach((b: any) => {
+      if (b.booking_fees) {
+        const bf = Array.isArray(b.booking_fees) ? b.booking_fees[0] : b.booking_fees;
+        if (bf) {
+          initialFees[b.id] = {
+            stampDuty: bf.stamp_duty || 0,
+            legal: bf.legal_fees || 0,
+            maintenance: bf.maintenance_fees || 0
+          };
+        }
+      }
+    });
+    setBookingFees(prev => ({ ...prev, ...initialFees }));
+  }, [initialPlot]);
+
+  const [feeForm, setFeeForm] = useState({ stampDuty: '', legal: '', maintenance: '' });
+
   const [isPending, startTransition] = React.useTransition();
   const { toast, showToast, hideToast } = useToast();
 
@@ -86,7 +112,7 @@ export default function PlotDetailsClient({
     plot_number: String(plot.plot_number || ''),
     area_sqyd: String(plot.area_sqyd || ''),
     price: String(plot.price || ''),
-    status: plot.status === 'partially_paid' ? 'token_paid' : (plot.status || 'available'),
+    status: plot.status || 'available',
   });
   const [editBookingForm, setEditBookingForm] = useState({
     total_amount: '',
@@ -233,10 +259,10 @@ export default function PlotDetailsClient({
     });
   };
 
-  const handleRemovePartner = (bookingId: string) => {
+  const handleRemovePartner = (bookingId: string, partnerClientId: string) => {
     if (!confirm('Remove this partner from the booking?')) return;
     startTransition(async () => {
-      const result = await removePartnerFromBooking(bookingId);
+      const result = await removePartnerFromBooking(bookingId, partnerClientId);
       if (result.success) {
         showToast('Partner removed', 'success');
         setTimeout(reload, 800);
@@ -468,6 +494,7 @@ export default function PlotDetailsClient({
     setShowDiscountModal(false);
     setShowTransferModal(false);
     setShowAddPartnerModal(false);
+    setShowFeesModal(false);
   };
 
   const handlePrintAllotmentLetter = async (booking: any) => {
@@ -475,7 +502,7 @@ export default function PlotDetailsClient({
       const payload = {
         name: booking.client?.name,
         client_name: booking.client?.name,
-        partner_name: booking.partner?.name || null,
+        partner_name: (booking.booking_partners || []).length > 0 ? booking.booking_partners.map((bp: any) => bp.client?.name).filter(Boolean).join(' & ') : null,
         project_name: plot.project?.name,
         plot_number: plot.plot_number,
         area_sqyd: plot.area_sqyd
@@ -509,7 +536,7 @@ export default function PlotDetailsClient({
 
   const plotStatusBadge = () => {
     if (plot.status === 'sold') return 'bg-rose-100 text-rose-700';
-    if (plot.status === 'token_paid' || plot.status === 'partially_paid') return 'bg-amber-100 text-amber-700';
+    if (plot.status === 'token_paid') return 'bg-amber-100 text-amber-700';
     return 'bg-emerald-100 text-emerald-700';
   };
 
@@ -527,7 +554,7 @@ export default function PlotDetailsClient({
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Plot {plot.plot_number}</h1>
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>
-              {plot.status === 'partially_paid' ? 'Token Paid' : plot.status?.replace('_', ' ')}
+              {plot.status?.replace('_', ' ')}
             </span>
             {isMasterAdmin && (
               <button
@@ -603,10 +630,17 @@ export default function PlotDetailsClient({
             ) : (
               bookings.map((booking: any) => {
                 const finalDeal = booking.total_amount - (booking.discount_amount || 0);
+                const fees = bookingFees[booking.id] || { stampDuty: 0, legal: 0, maintenance: 0 };
+                const stampAmount = (booking.total_amount * fees.stampDuty) / 100;
+                const legalAmount = (booking.total_amount * fees.legal) / 100;
+                const maintenanceAmount = (booking.total_amount * fees.maintenance) / 100;
+                const totalFees = stampAmount + legalAmount + maintenanceAmount;
+                const grandTotal = finalDeal + totalFees;
+
                 const paid = (booking.payments || []).reduce((s: number, p: any) => s + Number(p.amount), 0);
-                const due = finalDeal - paid;
+                const due = grandTotal - paid;
                 const isConfirmed = booking.status === 'confirmed';
-                const paymentPct = finalDeal > 0 ? Math.round((paid / finalDeal) * 100) : 0;
+                const paymentPct = grandTotal > 0 ? Math.round((paid / grandTotal) * 100) : 0;
 
                 return (
                   <div key={booking.id} className={`border rounded-2xl p-6 ${isConfirmed ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-white'} shadow-sm`}>
@@ -619,15 +653,18 @@ export default function PlotDetailsClient({
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">
                             {booking.client?.name || 'Unknown Client'}
-                            {booking.partner?.name && (
-                              <span className="text-gray-400 font-normal text-base"> & </span>
-                            )}
-                            {booking.partner?.name && (
-                              <span className="text-violet-700">{booking.partner.name}</span>
+                            {(booking.booking_partners || []).length > 0 && (
+                              <span className="text-gray-400 font-normal text-base">
+                                {' & '}
+                                {(booking.booking_partners || []).map((bp: any) => bp.client?.name).filter(Boolean).join(' & ')}
+                              </span>
                             )}
                           </h3>
                           <div className="flex items-center gap-2 text-sm text-gray-500">
                             <span>{booking.client?.phone || 'No Phone'}</span>
+                            {(booking.booking_partners || []).length > 0 && (
+                              <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-bold">Partnership</span>
+                            )}
                             {booking.consultant?.name && (
                               <>
                                 <span className="text-gray-300">•</span>
@@ -642,8 +679,8 @@ export default function PlotDetailsClient({
                           Booking Status: {booking.status}
                         </span>
                         {/* Admin Actions */}
-                        {/* Add/Remove Partner button */}
-                        {(isAdmin || isEmployee) && !booking.partner && (
+                        {/* Add Partner button — always shown unless plot is cancelled */}
+                        {(isAdmin || isEmployee) && booking.status !== 'cancelled' && (
                           <button
                             onClick={() => { setPartnerBookingId(booking.id); setPartnerSearch(''); setSelectedPartnerId(''); setShowAddPartnerModal(true); }}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
@@ -651,14 +688,16 @@ export default function PlotDetailsClient({
                             <UserPlus className="w-3.5 h-3.5" /> Add Partner
                           </button>
                         )}
-                        {(isAdmin || isEmployee) && booking.partner && (
+                        {/* Per-partner remove buttons */}
+                        {(isAdmin || isEmployee) && (booking.booking_partners || []).map((bp: any) => (
                           <button
-                            onClick={() => handleRemovePartner(booking.id)}
+                            key={bp.client_id}
+                            onClick={() => handleRemovePartner(booking.id, bp.client_id)}
                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
                           >
-                            <XCircle className="w-3.5 h-3.5" /> Remove Partner
+                            <XCircle className="w-3.5 h-3.5" /> Remove {bp.client?.name || 'Partner'}
                           </button>
-                        )}
+                        ))}
                         {isAdmin && isConfirmed && (
                            <button
                              onClick={() => handlePrintAllotmentLetter(booking)}
@@ -735,6 +774,30 @@ export default function PlotDetailsClient({
                           <span>Final Deal</span>
                           <span>₹{formatNumber(finalDeal)}</span>
                         </div>
+                        {fees.stampDuty > 0 && (
+                          <div className="flex justify-between text-sm text-gray-600">
+                            <span>+ Stamp Duty ({fees.stampDuty}%)</span>
+                            <span>₹{formatNumber(stampAmount)}</span>
+                          </div>
+                        )}
+                        {fees.legal > 0 && (
+                          <div className="flex justify-between text-sm text-gray-600">
+                            <span>+ Legal Fees ({fees.legal}%)</span>
+                            <span>₹{formatNumber(legalAmount)}</span>
+                          </div>
+                        )}
+                        {fees.maintenance > 0 && (
+                          <div className="flex justify-between text-sm text-gray-600">
+                            <span>+ Maintenance ({fees.maintenance}%)</span>
+                            <span>₹{formatNumber(maintenanceAmount)}</span>
+                          </div>
+                        )}
+                        {totalFees > 0 && (
+                          <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-violet-700">
+                            <span>Total Deal Value</span>
+                            <span>₹{formatNumber(grandTotal)}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between text-sm text-emerald-600 pt-1">
                           <span>Paid</span>
                           <span className="font-bold">₹{formatNumber(paid)}</span>
@@ -752,15 +815,23 @@ export default function PlotDetailsClient({
                             <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${Math.min(paymentPct, 100)}%` }} />
                           </div>
                         </div>
-                        {/* Discount button */}
-                        {/* {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
+                        {booking.status !== 'cancelled' && (
                           <button
-                            onClick={() => { setActiveBookingId(booking.id); setDiscountValue(String(booking.discount_amount || '')); setShowDiscountModal(true); }}
-                            className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-1"
+                            onClick={() => {
+                              setActiveFeeBookingId(booking.id);
+                              const existing = bookingFees[booking.id] || { stampDuty: 0, legal: 0, maintenance: 0 };
+                              setFeeForm({
+                                stampDuty: existing.stampDuty ? String(existing.stampDuty) : '',
+                                legal: existing.legal ? String(existing.legal) : '',
+                                maintenance: existing.maintenance ? String(existing.maintenance) : '',
+                              });
+                              setShowFeesModal(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-2"
                           >
-                            <Percent className="w-3 h-3" /> {isEmployee ? 'Request Discount Change' : 'Update Discount'}
+                            <Plus className="w-3 h-3" /> Calculate Fees
                           </button>
-                        )} */}
+                        )}
                       </div>
 
                       {/* Payment history */}
@@ -797,9 +868,12 @@ export default function PlotDetailsClient({
                                   <td className="px-3 py-2 text-gray-500 text-xs">
                                     {p.entity_id === booking.client_id
                                       ? (booking.client?.name || '—')
-                                      : p.entity_id === booking.partner_client_id
-                                        ? <span className="text-violet-600 font-semibold">{booking.partner?.name || 'Partner'}</span>
-                                        : '—'
+                                      : (() => {
+                                          const partnerMatch = (booking.booking_partners || []).find((bp: any) => bp.client_id === p.entity_id);
+                                          return partnerMatch
+                                            ? <span className="text-violet-600 font-semibold">{partnerMatch.client?.name || 'Partner'}</span>
+                                            : '—';
+                                        })()
                                     }
                                   </td>
                                   <td className="px-3 py-2 text-right font-bold text-gray-900">₹{formatNumber(p.amount)}</td>
@@ -952,7 +1026,8 @@ export default function PlotDetailsClient({
               {/* Payment By — only shown when booking has a partner */}
               {(() => {
                 const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
-                return activeBooking?.partner ? (
+                const hasPartners = (activeBooking?.booking_partners || []).length > 0;
+                return hasPartners ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Payment By</label>
                     <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
@@ -960,7 +1035,9 @@ export default function PlotDetailsClient({
                       onChange={e => setActiveClientId(e.target.value)}
                     >
                       <option value={activeBooking.client_id}>{activeBooking.client?.name} (Primary)</option>
-                      <option value={activeBooking.partner_client_id}>{activeBooking.partner.name} (Partner)</option>
+                      {(activeBooking.booking_partners || []).map((bp: any) => (
+                        <option key={bp.client_id} value={bp.client_id}>{bp.client?.name} (Partner)</option>
+                      ))}
                     </select>
                   </div>
                 ) : null;
@@ -1032,6 +1109,69 @@ export default function PlotDetailsClient({
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
                 <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
                   {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Apply')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== CALCULATE FEES MODAL ===== */}
+      {showFeesModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Calculate Fees</h2>
+              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
+            </div>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (activeFeeBookingId) {
+                const newFees = {
+                  stampDuty: parseFloat(feeForm.stampDuty) || 0,
+                  legal: parseFloat(feeForm.legal) || 0,
+                  maintenance: parseFloat(feeForm.maintenance) || 0,
+                };
+                
+                setBookingFees(prev => ({
+                  ...prev,
+                  [activeFeeBookingId]: newFees
+                }));
+                setShowFeesModal(false);
+                
+                startTransition(async () => {
+                  const res = await updateBookingFees(activeFeeBookingId, newFees);
+                  if (res.success) {
+                    showToast('Fees updated successfully', 'success');
+                  } else {
+                    showToast(res.error || 'Failed to update fees', 'error');
+                  }
+                });
+              }
+            }} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty (%)</label>
+                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                  placeholder="0" value={feeForm.stampDuty}
+                  onChange={e => setFeeForm({ ...feeForm, stampDuty: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Legal Fees (%)</label>
+                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                  placeholder="0" value={feeForm.legal}
+                  onChange={e => setFeeForm({ ...feeForm, legal: e.target.value })} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance Fees (%)</label>
+                <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                  placeholder="0" value={feeForm.maintenance}
+                  onChange={e => setFeeForm({ ...feeForm, maintenance: e.target.value })} />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={handleCloseModal}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700">
+                  Calculate
                 </button>
               </div>
             </form>

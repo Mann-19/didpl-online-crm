@@ -5,15 +5,10 @@ import { Eye } from 'lucide-react';
 
 export default function PlotsDataTable({ plots, projectId }: { plots: any[], projectId: string }) {
   
-  const getStatusBadge = (status: string, percentage: number) => {
-    // In legacy code, they used payment percentage to determine colors.
-    // In new DB, status is an enum: 'available', 'token_paid', 'partially_paid', 'sold'
-    
+  const getStatusBadge = (status: string) => {
     if (status === 'available') return { emoji: '🟢', label: 'Available', color: 'bg-green-100 text-green-800' }
-    if (status === 'token_paid') return { emoji: '🟡', label: 'Token', color: 'bg-yellow-100 text-yellow-800' }
-    if (status === 'partially_paid') return { emoji: '🟠', label: 'Partial', color: 'bg-orange-100 text-orange-800' }
+    if (status === 'token_paid') return { emoji: '🟡', label: 'Token Paid', color: 'bg-yellow-100 text-yellow-800' }
     if (status === 'sold') return { emoji: '🔴', label: 'Sold', color: 'bg-red-100 text-red-800' }
-    
     return { emoji: '⚪', label: 'Unknown', color: 'bg-gray-100 text-gray-800' }
   };
 
@@ -35,16 +30,27 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
           </thead>
           <tbody className="divide-y divide-gray-100">
             {plots.map((plot, idx) => {
-              // Calculate payment percentage based on active booking
-              const activeBooking = plot.bookings?.[0];
-              const totalAmount = activeBooking ? (activeBooking.total_amount - (activeBooking.discount_amount || 0)) : plot.price;
+              // Pick the most relevant active booking — confirmed first, then pending, skip cancelled
+              const allBookings: any[] = plot.bookings || [];
+              const activeBooking =
+                allBookings.find((b: any) => b.status === 'confirmed') ||
+                allBookings.find((b: any) => b.status === 'pending') ||
+                null;
+
+              const totalAmount = activeBooking
+                ? (activeBooking.total_amount - (activeBooking.discount_amount || 0))
+                : plot.price;
               const payments = activeBooking?.payments || [];
               const amountPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
-              
               const paymentPercentage = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
-              
-              const badge = getStatusBadge(plot.status, paymentPercentage);
-              const clientName = plot.clients?.name;
+
+              // Prefer booking's client name over stale plot join
+              const clientName =
+                activeBooking?.client?.name ||
+                plot.clients?.name ||
+                null;
+
+              const badge = getStatusBadge(plot.status);
 
               return (
                 <tr key={plot.id} className={`hover:bg-violet-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
@@ -75,7 +81,7 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
                     {clientName ? (
                       <span className="font-medium">{clientName}</span>
                     ) : (
-                      <span className="text-gray-400 italic">None</span>
+                      <span className="text-gray-400 italic">—</span>
                     )}
                   </td>
                   
@@ -101,11 +107,10 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
       </div>
 
       <div className="mt-6 p-4 bg-violet-50 rounded border border-violet-100">
-        <p className="text-sm text-violet-800 flex items-center gap-2">
+        <p className="text-sm text-violet-800 flex items-center gap-3">
           <strong>Legend:</strong>
           <span>🟢 Available</span>
           <span>🟡 Token Paid</span>
-          <span>🟠 Partially Paid</span>
           <span>🔴 Sold</span>
         </p>
       </div>

@@ -148,7 +148,6 @@ export default function BookingClient({ data }: { data: any[] }) {
                 <option value="">All Statuses</option>
                 <option value="pending">Pending / Negotiation</option>
                 <option value="confirmed">Confirmed</option>
-                <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
               <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
@@ -194,7 +193,12 @@ export default function BookingClient({ data }: { data: any[] }) {
                     </td>
                     <td className="px-4 py-4">
                       <div className="font-bold text-gray-900">{r.client_name}</div>
-                      <div className="text-xs text-gray-500 mt-0.5">Ref: {r.consultant_name}</div>
+                      {r.partner_names?.length > 0 && (
+                        <div className="text-xs text-violet-600 font-semibold mt-0.5">
+                          Partnership with: {r.partner_names.join(', ')}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500 mt-0.5">Ref: {r.consultant_name || '—'}</div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="font-semibold text-gray-800">Plot {r.plot_number}</div>

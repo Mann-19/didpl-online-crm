@@ -258,6 +258,7 @@ async function applyApprovedChange(change: PendingChange): Promise<ChangeRequest
     if (!entity_id) return { success: false, error: 'entity_id required for update' }
     
     // SPECIAL HANDLING for Booking side-effects
+    // Each branch returns immediately — no fallthrough to generic update below.
     if (entity_type === 'booking') {
       if (payload.status === 'confirmed') {
         const { data: b } = await supabase.from('bookings').select('plot_id, client_id').eq('id', entity_id).single()
@@ -266,6 +267,7 @@ async function applyApprovedChange(change: PendingChange): Promise<ChangeRequest
           const res = await confirmBooking(entity_id, b.plot_id, b.client_id)
           if (!res.success) return res
         }
+        return { success: true } // confirmBooking already updated booking status
       } else if (payload.status === 'pending') {
         const { data: b } = await supabase.from('bookings').select('plot_id').eq('id', entity_id).single()
         if (b) {
@@ -273,15 +275,17 @@ async function applyApprovedChange(change: PendingChange): Promise<ChangeRequest
           const res = await revertBooking(entity_id, b.plot_id)
           if (!res.success) return res
         }
+        return { success: true } // revertBooking already updated booking status
       } else if (payload.plot_id) {
-        // Transfer plot
+        // Transfer booking to new plot
         const { transferBooking } = await import('./plots.actions')
         const res = await transferBooking(entity_id, payload.plot_id)
         if (!res.success) return res
+        return { success: true } // transferBooking handled everything
       }
     }
-    
-    // Proceed with regular update (this may be redundant for confirmed/pending but harmless)
+
+    // Generic update for non-special cases (e.g. discount_amount, commission_percent changes)
     const result = await supabase.from(table).update(payload).eq('id', entity_id)
     error = result.error
   } else if (operation === 'delete') {
