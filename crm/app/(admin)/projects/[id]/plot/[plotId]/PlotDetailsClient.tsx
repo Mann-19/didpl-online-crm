@@ -58,7 +58,7 @@ export default function PlotDetailsClient({
   // Fees calculation state (UI only)
   const [showFeesModal, setShowFeesModal] = useState(false);
   const [activeFeeBookingId, setActiveFeeBookingId] = useState<string | null>(null);
-  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: number, legal: number, maintenance: number }>>({});
+  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number }>>({});
   
   // Sync state with props when data is refreshed
   useEffect(() => {
@@ -424,7 +424,7 @@ export default function PlotDetailsClient({
         payment_mode: paymentForm.mode,
         description: paymentForm.description,
         transaction_id: paymentForm.transaction_id || undefined,
-        entity_id: paymentForm.entity_id || activeClientId,
+        entity_id: paymentForm.entity_id || activeClientId || '',
         payment_type: paymentForm.payment_type
       };
 
@@ -1031,7 +1031,7 @@ export default function PlotDetailsClient({
                       const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
                       if (activeBooking) {
                         const finalDeal = activeBooking.total_amount - (activeBooking.discount_amount || 0);
-                        const fees = bookingFees[activeBookingId] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                        const fees = (activeBookingId ? bookingFees[activeBookingId] : null) || { stampDuty: '0', legal: '0', maintenance: '0' };
                         let amt = 0;
                         if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
                         if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);

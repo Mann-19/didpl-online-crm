@@ -554,6 +554,7 @@ export async function updatePayment(
     payment_mode: string
     description: string
     transaction_id: string
+    payment_type: string
   }>
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
@@ -582,7 +583,7 @@ export async function deleteChangeRequest(id: string) {
   return { success: true }
 }
 
-export async function updateBookingFees(bookingId: string, fees: { stampDuty: number, legal: number, maintenance: number }) {
+export async function updateBookingFees(bookingId: string, fees: { stampDuty: string | number, legal: string | number, maintenance: string | number }) {
   const supabase = await createClient()
   const { error } = await supabase.from('booking_fees').upsert({
     booking_id: bookingId,
