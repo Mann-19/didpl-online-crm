@@ -176,11 +176,21 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
 
   // Payment Details Table - Row 3
   doc.rect(margin, y, contentWidth, 8);
+  
+  // Col 1 - Payment Mode
   doc.setFont("helvetica", "normal");
   doc.text("Payment Mode: ", margin + 2, y + 5.5);
   const modeLabelWidth = doc.getTextWidth("Payment Mode: ");
   doc.setFont("helvetica", "bold");
   doc.text((data.payment_mode || "UPI").toUpperCase(), margin + 2 + modeLabelWidth, y + 5.5);
+  
+  // Col 2 - Receipt Type
+  doc.setFont("helvetica", "normal");
+  doc.text("Receipt Type: ", col2X + 2, y + 5.5);
+  const typeLabelWidth = doc.getTextWidth("Receipt Type: ");
+  doc.setFont("helvetica", "bold");
+  doc.text(data.payment_type || "Plot payment", col2X + 2 + typeLabelWidth, y + 5.5);
+
   y += 15;
 
   // Contact Section

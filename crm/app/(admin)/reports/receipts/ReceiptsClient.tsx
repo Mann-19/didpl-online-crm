@@ -88,6 +88,7 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
         { label: 'Plot No.', key: 'plot_number' },
         { label: 'Payment Mode', key: 'payment_mode' },
         { label: 'Transaction ID', key: (r) => r.transaction_id || '—' },
+        { label: 'Receipt Type', key: (r) => r.payment_type || 'Plot payment' },
         { label: 'Description', key: (r) => r.description || '—' },
         { label: 'Amount', key: (r) => `Rs. ${formatNumber(r.amount)}` }
       ]
