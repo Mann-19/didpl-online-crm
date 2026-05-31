@@ -16,6 +16,11 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
   const [sortKey, setSortKey] = useState('payment_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const [showStampDuty, setShowStampDuty] = useState(false);
+  const [showLegalFees, setShowLegalFees] = useState(false);
+  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
+
   // PDF Preview Modal
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
@@ -46,7 +51,15 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
         (r.description || '').toLowerCase().includes(s);
       const matchDate = (!startDate || r.payment_date >= startDate) && (!endDate || r.payment_date <= endDate);
       const matchMode = !modeFilter || r.payment_mode === modeFilter;
-      return matchText && matchDate && matchMode;
+      
+      // Fee toggle logic
+      let feeMatch = true;
+      if (r.payment_type === 'Stamp duty fees' && !showStampDuty) feeMatch = false;
+      if (r.payment_type === 'Legal fees' && !showLegalFees) feeMatch = false;
+      if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
+      if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
+
+      return matchText && matchDate && matchMode && feeMatch;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -141,7 +154,28 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
                 ))}
               </select>
             </div>
-            <div className="flex flex-col md:flex-row gap-3 items-center">
+            
+            <div className="flex flex-wrap items-center gap-4 pt-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Receipts:</span>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Stamp Duty
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Legal Fees
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Maintenance
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Registration
+              </label>
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-3 items-center pt-2 border-t border-gray-100">
               <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
               <input type="date" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                 value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -203,6 +237,9 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
                         </span>
                         {r.transaction_id && <span className="text-xs text-gray-400 font-mono">Ref: {r.transaction_id}</span>}
                       </div>
+                      {r.payment_type && r.payment_type !== 'Plot payment' && (
+                        <div className="text-xs text-amber-600 font-semibold mt-1 max-w-[200px] truncate">{r.payment_type}</div>
+                      )}
                       {r.description && <div className="text-xs text-gray-500 mt-1 max-w-[200px] truncate" title={r.description}>{r.description}</div>}
                     </td>
                     <td className="px-4 py-4 text-right font-bold text-emerald-600 text-base bg-emerald-50/30 group-hover:bg-emerald-50 transition-colors">

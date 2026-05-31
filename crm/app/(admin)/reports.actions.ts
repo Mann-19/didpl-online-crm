@@ -11,7 +11,7 @@ export async function getLedger() {
   const { data, error } = await supabase
     .from('payments')
     .select(`
-      id, amount, payment_date, payment_mode, transaction_type,
+      id, amount, payment_date, payment_mode, transaction_type, payment_type,
       description, entity_type,
       booking:booking_id (
         client:client_id ( id, name, phone ),
@@ -28,6 +28,7 @@ export async function getLedger() {
     payment_date: p.payment_date,
     payment_mode: p.payment_mode,
     transaction_type: p.transaction_type,
+    payment_type: p.payment_type || 'Plot payment',
     description: p.description,
     entity_type: p.entity_type,
     client_name: p.booking?.client?.name || null,
@@ -49,7 +50,9 @@ export async function getRecoveryReport() {
       id, total_amount, discount_amount, booking_date, status,
       client:client_id ( id, name, phone ),
       plot:plot_id ( plot_number, project:project_id ( name ) ),
-      amount_paid
+      amount_paid,
+      booking_fees (*),
+      payments ( amount, payment_type )
     `)
     .in('status', ['pending', 'confirmed'])
     .order('booking_date', { ascending: false })
@@ -75,6 +78,8 @@ export async function getRecoveryReport() {
         amount_paid: paid,
         discount_amount: discount,
         balance_due: balance,
+        booking_fees: Array.isArray(b.booking_fees) ? b.booking_fees[0] : b.booking_fees,
+        payments: b.payments || []
       }
     })
     .filter((r: any) => r.balance_due > 0)
@@ -156,7 +161,9 @@ export async function getBookingReport() {
       plot:plot_id ( plot_number, area_sqyd, project:project_id ( name ) ),
       consultant:consultant_id ( name ),
       booking_partners ( client:client_id ( name ) ),
-      amount_paid
+      amount_paid,
+      booking_fees (*),
+      payments ( amount, payment_type )
     `)
     .neq('status', 'cancelled')
     .order('booking_date', { ascending: false })
@@ -186,7 +193,9 @@ export async function getBookingReport() {
       discount_amount: discount,
       final_deal: total - discount,
       amount_paid: paid,
-      balance_due: (total - discount) - paid
+      balance_due: (total - discount) - paid,
+      booking_fees: Array.isArray(b.booking_fees) ? b.booking_fees[0] : b.booking_fees,
+      payments: b.payments || []
     }
   })
 }
@@ -199,7 +208,7 @@ export async function getReceiptReport() {
   const { data, error } = await supabase
     .from('payments')
     .select(`
-      id, receipt_no, amount, payment_date, payment_mode, description, transaction_id,
+      id, receipt_no, amount, payment_date, payment_mode, description, transaction_id, payment_type,
       booking:booking_id (
         client:client_id ( name, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
         plot:plot_id ( plot_number, project:project_id ( name ) ),
@@ -217,6 +226,7 @@ export async function getReceiptReport() {
     amount: Number(p.amount) || 0,
     payment_date: p.payment_date,
     payment_mode: p.payment_mode,
+    payment_type: p.payment_type || 'Plot payment',
     description: p.description,
     transaction_id: p.transaction_id || p.description || 'N/A',
     client_name: p.booking?.client?.name || '—',

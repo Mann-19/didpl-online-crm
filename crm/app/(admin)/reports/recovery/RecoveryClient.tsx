@@ -4,12 +4,18 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Phone, AlertCircle, Wallet, CheckCircle2, Download } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
+import { parseFee } from '@/utils/parseFee';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 
 export default function RecoveryClient({ data }: { data: any[] }) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('balance_due');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const [showStampDuty, setShowStampDuty] = useState(false);
+  const [showLegalFees, setShowLegalFees] = useState(false);
+  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
 
   const filtered = [...data]
     .filter(r => {
@@ -35,20 +41,43 @@ export default function RecoveryClient({ data }: { data: any[] }) {
   const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
   const handleExport = () => {
+    const headers = [
+      { label: 'Client', key: 'name' },
+      { label: 'Phone', key: (r: any) => r.phone || 'No Phone' },
+      { label: 'Project', key: 'project_name' },
+      { label: 'Plot No.', key: 'plot_number' },
+      { label: 'Booking Date', key: (r: any) => fmt(r.booking_date) },
+      { label: 'Deal Value', key: (r: any) => `Rs. ${formatNumber(r.total_amount)}` },
+      { label: 'Paid Amount', key: (r: any) => `Rs. ${formatNumber(r.amount_paid)}` },
+      { label: 'Balance Due', key: (r: any) => `Rs. ${formatNumber(r.balance_due)}` }
+    ];
+
+    if (showStampDuty) headers.push({ label: 'Stamp Duty Balance', key: (r: any) => {
+      const amt = parseFee(r.booking_fees?.stamp_duty, r.total_amount);
+      const paid = r.payments?.filter((p: any) => p.payment_type === 'Stamp duty fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+      return `Rs. ${formatNumber(amt - paid)}`;
+    }});
+    if (showLegalFees) headers.push({ label: 'Legal Fees Balance', key: (r: any) => {
+      const amt = parseFee(r.booking_fees?.legal_fees, r.total_amount);
+      const paid = r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+      return `Rs. ${formatNumber(amt - paid)}`;
+    }});
+    if (showMaintenance) headers.push({ label: 'Maintenance Balance', key: (r: any) => {
+      const amt = parseFee(r.booking_fees?.maintenance_fees, r.total_amount);
+      const paid = r.payments?.filter((p: any) => p.payment_type === 'Maintenance fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+      return `Rs. ${formatNumber(amt - paid)}`;
+    }});
+    if (showRegistration) headers.push({ label: 'Registration Balance', key: (r: any) => {
+      const amt = parseFee(r.booking_fees?.registration_fees, r.total_amount);
+      const paid = r.payments?.filter((p: any) => p.payment_type === 'Registration fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+      return `Rs. ${formatNumber(amt - paid)}`;
+    }});
+
     exportToPDF({
       title: 'Recovery Report',
       filename: 'Recovery_Report',
       data: filtered,
-      headers: [
-        { label: 'Client', key: 'name' },
-        { label: 'Phone', key: (r) => r.phone || 'No Phone' },
-        { label: 'Project', key: 'project_name' },
-        { label: 'Plot No.', key: 'plot_number' },
-        { label: 'Booking Date', key: (r) => fmt(r.booking_date) },
-        { label: 'Deal Value', key: (r) => `Rs. ${formatNumber(r.total_amount)}` },
-        { label: 'Paid Amount', key: (r) => `Rs. ${formatNumber(r.amount_paid)}` },
-        { label: 'Balance Due', key: (r) => `Rs. ${formatNumber(r.balance_due)}` }
-      ]
+      headers
     });
   };
 
@@ -118,6 +147,26 @@ export default function RecoveryClient({ data }: { data: any[] }) {
               {sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
             </button>
           </div>
+          
+          <div className="flex flex-wrap items-center gap-4 px-4 pb-4 pt-1">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Recoveries:</span>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+              Stamp Duty
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+              Legal Fees
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+              Maintenance
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+              Registration
+            </label>
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
@@ -130,6 +179,10 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                   <th className="px-5 py-3 text-right text-orange-600">Discount</th>
                   <th className="px-5 py-3 text-right text-emerald-600">Paid</th>
                   <th className="px-5 py-3 text-right text-red-600">Balance Due</th>
+                  {showStampDuty && <th className="px-5 py-3 text-right text-gray-500 min-w-[120px]">Stamp Duty<br/>Balance</th>}
+                  {showLegalFees && <th className="px-5 py-3 text-right text-gray-500 min-w-[120px]">Legal Fees<br/>Balance</th>}
+                  {showMaintenance && <th className="px-5 py-3 text-right text-gray-500 min-w-[120px]">Maintenance<br/>Balance</th>}
+                  {showRegistration && <th className="px-5 py-3 text-right text-gray-500 min-w-[120px]">Registration<br/>Balance</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -163,6 +216,26 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                     <td className="px-5 py-4 text-right font-bold text-red-600 bg-red-50/30 group-hover:bg-red-50 transition-colors">
                       ₹{formatNumber(r.balance_due)}
                     </td>
+                    {showStampDuty && (() => {
+                      const amt = parseFee(r.booking_fees?.stamp_duty, r.total_amount);
+                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Stamp duty fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+                      return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
+                    })()}
+                    {showLegalFees && (() => {
+                      const amt = parseFee(r.booking_fees?.legal_fees, r.total_amount);
+                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+                      return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
+                    })()}
+                    {showMaintenance && (() => {
+                      const amt = parseFee(r.booking_fees?.maintenance_fees, r.total_amount);
+                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Maintenance fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+                      return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
+                    })()}
+                    {showRegistration && (() => {
+                      const amt = parseFee(r.booking_fees?.registration_fees, r.total_amount);
+                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Registration fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+                      return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
+                    })()}
                   </tr>
                 ))}
               </tbody>
@@ -171,6 +244,26 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                   <td colSpan={5} className="px-5 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Records</td>
                   <td className="px-5 py-3 text-right text-sm font-bold text-emerald-700">₹{formatNumber(totalPaid)}</td>
                   <td className="px-5 py-3 text-right text-sm font-bold text-red-700">₹{formatNumber(totalPending)}</td>
+                  {showStampDuty && (
+                    <td className="px-5 py-3 text-right text-sm font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.stamp_duty, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Stamp duty fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
+                    </td>
+                  )}
+                  {showLegalFees && (
+                    <td className="px-5 py-3 text-right text-sm font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.legal_fees, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
+                    </td>
+                  )}
+                  {showMaintenance && (
+                    <td className="px-5 py-3 text-right text-sm font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.maintenance_fees, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Maintenance fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
+                    </td>
+                  )}
+                  {showRegistration && (
+                    <td className="px-5 py-3 text-right text-sm font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.registration_fees, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Registration fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
+                    </td>
+                  )}
                 </tr>
               </tfoot>
             </table>

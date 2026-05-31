@@ -14,6 +14,11 @@ export default function LedgerClient({ data }: { data: any[] }) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [txType, setTxType] = useState('');
 
+  const [showStampDuty, setShowStampDuty] = useState(false);
+  const [showLegalFees, setShowLegalFees] = useState(false);
+  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
+
   const filtered = data
     .filter(r => {
       const s = search.toLowerCase();
@@ -23,7 +28,15 @@ export default function LedgerClient({ data }: { data: any[] }) {
         (r.description || '').toLowerCase().includes(s);
       const matchDate = (!startDate || r.payment_date >= startDate) && (!endDate || r.payment_date <= endDate);
       const matchType = !txType || r.transaction_type === txType;
-      return matchText && matchDate && matchType;
+      
+      // Fee toggle logic
+      let feeMatch = true;
+      if (r.payment_type === 'Stamp duty fees' && !showStampDuty) feeMatch = false;
+      if (r.payment_type === 'Legal fees' && !showLegalFees) feeMatch = false;
+      if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
+      if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
+
+      return matchText && matchDate && matchType && feeMatch;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -111,7 +124,28 @@ export default function LedgerClient({ data }: { data: any[] }) {
                 <option value="debit">Debit (-)</option>
               </select>
             </div>
-            <div className="flex flex-col md:flex-row gap-3 items-center">
+            
+            <div className="flex flex-wrap items-center gap-4 pt-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Transactions:</span>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Stamp Duty
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Legal Fees
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Maintenance
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Registration
+              </label>
+            </div>
+            
+            <div className="flex flex-col md:flex-row gap-3 items-center pt-2 border-t border-gray-100">
               <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
               <input type="date" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-emerald-500"
                 value={startDate} onChange={e => setStartDate(e.target.value)} />
@@ -153,6 +187,9 @@ export default function LedgerClient({ data }: { data: any[] }) {
                       <div className="text-xs text-gray-400">
                         {r.project_name ? `${r.project_name} — Plot ${r.plot_number}` : r.description || '—'}
                       </div>
+                      {r.payment_type && r.payment_type !== 'Plot payment' && (
+                        <div className="text-xs text-amber-600 font-semibold mt-0.5">{r.payment_type}</div>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       <span className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-600 border border-gray-200">{r.payment_mode}</span>

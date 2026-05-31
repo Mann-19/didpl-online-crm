@@ -74,7 +74,11 @@ export async function addPayment(formData: {
   // Calculate commission and TDS for this individual payment
   let commission_amount = 0
   let tds_amount = 0
-  if (booking?.consultant_id && booking?.commission_percent) {
+  
+  // Fees do not generate commission
+  const isPlotPayment = !formData.payment_type || formData.payment_type === 'Plot payment'
+  
+  if (isPlotPayment && booking?.consultant_id && booking?.commission_percent) {
     commission_amount = formData.amount * (booking.commission_percent / 100)
     tds_amount = commission_amount * 0.02 // Fixed 2% TDS
   }
@@ -459,6 +463,77 @@ export async function mergeTransferIntoPartnership(
   return { success: true }
 }
 
+export async function mergeBookingsOnSamePlot(
+  sourceBookingId: string,
+  targetBookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  // 1. Fetch source booking details, including primary client and partners
+  const { data: sourceBooking, error: srcErr } = await supabase
+    .from('bookings')
+    .select('plot_id, client_id, booking_partners ( client_id ), payments ( id )')
+    .eq('id', sourceBookingId)
+    .single()
+
+  if (srcErr || !sourceBooking) return { success: false, error: srcErr?.message || 'Source booking not found' }
+
+  // 2. Fetch target booking details
+  const { data: targetBooking, error: tgtErr } = await supabase
+    .from('bookings')
+    .select('plot_id, client_id')
+    .eq('id', targetBookingId)
+    .single()
+
+  if (tgtErr || !targetBooking) return { success: false, error: tgtErr?.message || 'Target booking not found' }
+
+  if (sourceBooking.plot_id !== targetBooking.plot_id) {
+    return { success: false, error: 'Bookings do not belong to the same plot' }
+  }
+
+  // 3. Collect clients to merge as partners (primary client + existing partners)
+  const clientsToAdd = new Set<string>()
+  clientsToAdd.add(sourceBooking.client_id)
+  ;(sourceBooking.booking_partners || []).forEach((bp: any) => {
+    clientsToAdd.add(bp.client_id)
+  })
+
+  // Prevent adding the target booking's primary client as a partner to itself
+  clientsToAdd.delete(targetBooking.client_id)
+
+  const partnerInserts = Array.from(clientsToAdd).map((clientId) => ({
+    booking_id: targetBookingId,
+    client_id: clientId,
+  }))
+
+  if (partnerInserts.length > 0) {
+    const { error: partErr } = await supabase
+      .from('booking_partners')
+      .upsert(partnerInserts, { onConflict: 'booking_id, client_id' })
+    if (partErr) return { success: false, error: partErr.message }
+  }
+
+  // 4. Move all payments to the target booking
+  const sourcePaymentIds = (sourceBooking.payments || []).map((p: any) => p.id)
+  if (sourcePaymentIds.length > 0) {
+    const { error: payErr } = await supabase
+      .from('payments')
+      .update({ booking_id: targetBookingId })
+      .in('id', sourcePaymentIds)
+    if (payErr) return { success: false, error: payErr.message }
+  }
+
+  // 5. Delete source booking
+  const { error: delErr } = await supabase
+    .from('bookings')
+    .delete()
+    .eq('id', sourceBookingId)
+  if (delErr) return { success: false, error: delErr.message }
+
+  revalidatePath('/projects')
+  return { success: true }
+}
+
 // Update discount on an existing booking
 export async function updateBookingDiscount(
   bookingId: string,
@@ -583,13 +658,14 @@ export async function deleteChangeRequest(id: string) {
   return { success: true }
 }
 
-export async function updateBookingFees(bookingId: string, fees: { stampDuty: string | number, legal: string | number, maintenance: string | number }) {
+export async function updateBookingFees(bookingId: string, fees: { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number }) {
   const supabase = await createClient()
   const { error } = await supabase.from('booking_fees').upsert({
     booking_id: bookingId,
     stamp_duty: fees.stampDuty,
     legal_fees: fees.legal,
     maintenance_fees: fees.maintenance,
+    registration_fees: fees.registration,
     updated_at: new Date().toISOString()
   }, { onConflict: 'booking_id' })
   

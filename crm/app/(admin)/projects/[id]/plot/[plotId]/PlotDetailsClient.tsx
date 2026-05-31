@@ -8,13 +8,14 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
+import { parseFee } from '@/utils/parseFee';
 import {
   createBooking, addPayment, confirmBooking,
   cancelBooking, updateBookingDiscount, revertBooking,
   updatePlot, updateBooking, updatePayment, deletePayment,
   transferBooking, getTransferablePlotsForClient,
   addPartnerToBooking, removePartnerFromBooking, mergeTransferIntoPartnership,
-  updateBookingFees
+  updateBookingFees, mergeBookingsOnSamePlot
 } from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
@@ -48,6 +49,9 @@ export default function PlotDetailsClient({
 
   // Partner modal state
   const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
+  const [showMergeSamePlotModal, setShowMergeSamePlotModal] = useState(false);
+  const [mergeSourceBookingId, setMergeSourceBookingId] = useState<string | null>(null);
+  const [mergeSamePlotTargetId, setMergeSamePlotTargetId] = useState('');
   const [partnerBookingId, setPartnerBookingId] = useState<string | null>(null);
   const [partnerSearch, setPartnerSearch] = useState('');
   const [selectedPartnerId, setSelectedPartnerId] = useState('');
@@ -58,7 +62,7 @@ export default function PlotDetailsClient({
   // Fees calculation state (UI only)
   const [showFeesModal, setShowFeesModal] = useState(false);
   const [activeFeeBookingId, setActiveFeeBookingId] = useState<string | null>(null);
-  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number }>>({});
+  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number }>>({});
   
   // Sync state with props when data is refreshed
   useEffect(() => {
@@ -70,7 +74,8 @@ export default function PlotDetailsClient({
           initialFees[b.id] = {
             stampDuty: bf.stamp_duty || 0,
             legal: bf.legal_fees || 0,
-            maintenance: bf.maintenance_fees || 0
+            maintenance: bf.maintenance_fees || 0,
+            registration: bf.registration_fees || 0
           };
         }
       }
@@ -81,7 +86,8 @@ export default function PlotDetailsClient({
   const [feeForm, setFeeForm] = useState({ 
     stampDuty: { value: '', type: '%' }, 
     legal: { value: '', type: '%' }, 
-    maintenance: { value: '', type: '%' } 
+    maintenance: { value: '', type: '%' },
+    registration: { value: '', type: '%' }
   });
 
   const [isPending, startTransition] = React.useTransition();
@@ -267,6 +273,22 @@ export default function PlotDetailsClient({
         setTimeout(reload, 800);
       } else {
         showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const handleMergeSamePlot = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mergeSourceBookingId || !mergeSamePlotTargetId) return;
+
+    startTransition(async () => {
+      const result = await mergeBookingsOnSamePlot(mergeSourceBookingId, mergeSamePlotTargetId);
+      if (result.success) {
+        showToast('Successfully merged bookings', 'success');
+        setShowMergeSamePlotModal(false);
+        setTimeout(reload, 800);
+      } else {
+        showToast(result.error || 'Failed to merge bookings', 'error');
       }
     });
   };
@@ -560,16 +582,6 @@ export default function PlotDetailsClient({
     setShowEditPaymentModal(true);
   };
 
-  const parseFee = (fee: string | number | undefined, agreedValue: number) => {
-    if (!fee) return 0;
-    const str = String(fee).trim();
-    if (str.endsWith('%')) {
-      const percent = parseFloat(str.replace('%', ''));
-      return (agreedValue * percent) / 100;
-    }
-    return parseFloat(str) || 0;
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
       {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
@@ -648,14 +660,17 @@ export default function PlotDetailsClient({
             ) : (
               bookings.map((booking: any) => {
                 const finalDeal = booking.total_amount - (booking.discount_amount || 0);
-                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
                 const stampDutyAmount = parseFee(fees.stampDuty, finalDeal);
                 const legalFeesAmount = parseFee(fees.legal, finalDeal);
                 const maintenanceAmount = parseFee(fees.maintenance, finalDeal);
-                const totalFees = stampDutyAmount + legalFeesAmount + maintenanceAmount;
-                const grandTotal = finalDeal; // Fees are included in the agreed value
+                const registrationFeesAmount = parseFee(fees.registration, finalDeal);
+                const grandTotal = finalDeal; // Fees are strictly excluded from plot value
 
-                const paid = Number(booking.amount_paid) || 0;
+                // Plot paid amount (UI fallback calculated from payments if trigger is delayed)
+                const paid = (booking.payments || [])
+                  .filter((p: any) => p.payment_type === 'Plot payment' || !p.payment_type)
+                  .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
                 const due = grandTotal - paid;
                 const isConfirmed = booking.status === 'confirmed';
                 const paymentPct = grandTotal > 0 ? Math.round((paid / grandTotal) * 100) : 0;
@@ -754,6 +769,14 @@ export default function PlotDetailsClient({
                             <CheckCircle2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Confirmation' : 'Confirm Owner'}
                           </button>
                         )}
+                        {(isAdmin || isEmployee) && booking.status === 'pending' && bookings.length > 1 && (
+                          <button
+                            onClick={() => { setMergeSourceBookingId(booking.id); setMergeSamePlotTargetId(''); setShowMergeSamePlotModal(true); }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors"
+                          >
+                            <GitMerge className="w-3.5 h-3.5" /> Merge
+                          </button>
+                        )}
                         {(isAdmin || isEmployee) && booking.status === 'pending' && (
                           <button
                             onClick={() => openTransferModal(booking.id)}
@@ -776,7 +799,8 @@ export default function PlotDetailsClient({
                     {/* Financials + Payments */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Financial breakdown */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5">
+                      {/* Financial breakdown */}
+                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5 mb-4">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Agreed Value</span>
                           <span className="font-bold text-gray-900">₹{formatNumber(booking.total_amount)}</span>
@@ -786,29 +810,11 @@ export default function PlotDetailsClient({
                           <span className="font-bold">– ₹{formatNumber(booking.discount_amount || 0)}</span>
                         </div>
                         <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-violet-700">
-                          <span>Final Deal Value</span>
+                          <span>Plot Deal Value</span>
                           <span>₹{formatNumber(grandTotal)}</span>
                         </div>
-                        {stampDutyAmount > 0 && (
-                          <div className="flex justify-between text-xs text-gray-500 pl-4">
-                            <span>↳ Includes Stamp Duty</span>
-                            <span>₹{formatNumber(stampDutyAmount)}</span>
-                          </div>
-                        )}
-                        {legalFeesAmount > 0 && (
-                          <div className="flex justify-between text-xs text-gray-500 pl-4">
-                            <span>↳ Includes Legal Fees</span>
-                            <span>₹{formatNumber(legalFeesAmount)}</span>
-                          </div>
-                        )}
-                        {maintenanceAmount > 0 && (
-                          <div className="flex justify-between text-xs text-gray-500 pl-4">
-                            <span>↳ Includes Maintenance</span>
-                            <span>₹{formatNumber(maintenanceAmount)}</span>
-                          </div>
-                        )}
                         <div className="flex justify-between text-sm text-emerald-600 pt-1">
-                          <span>Paid</span>
+                          <span>Paid (Plot only)</span>
                           <span className="font-bold">₹{formatNumber(paid)}</span>
                         </div>
                         <div className="flex justify-between text-sm text-orange-600 font-bold">
@@ -827,7 +833,7 @@ export default function PlotDetailsClient({
                           <button
                             onClick={() => {
                               setActiveFeeBookingId(booking.id);
-                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
+                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
                               const parseState = (val: string | number | undefined) => {
                                 if (!val || val === '0') return { value: '', type: '%' };
                                 const str = String(val).trim();
@@ -837,7 +843,8 @@ export default function PlotDetailsClient({
                               setFeeForm({
                                 stampDuty: parseState(existing.stampDuty),
                                 legal: parseState(existing.legal),
-                                maintenance: parseState(existing.maintenance)
+                                maintenance: parseState(existing.maintenance),
+                                registration: parseState(existing.registration)
                               });
                               setShowFeesModal(true);
                             }}
@@ -847,6 +854,35 @@ export default function PlotDetailsClient({
                           </button>
                         )}
                       </div>
+
+                      {/* Government & Additional Fees Section */}
+                      {(stampDutyAmount > 0 || legalFeesAmount > 0 || maintenanceAmount > 0 || registrationFeesAmount > 0) && (
+                        <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100 space-y-3 mb-4">
+                          <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">Government & Additional Fees</h4>
+                          
+                          {[
+                            { label: 'Stamp Duty', amount: stampDutyAmount, type: 'Stamp duty fees' },
+                            { label: 'Legal Fees', amount: legalFeesAmount, type: 'Legal fees' },
+                            { label: 'Maintenance', amount: maintenanceAmount, type: 'Maintenance fees' },
+                            { label: 'Registration', amount: registrationFeesAmount, type: 'Registration fees' }
+                          ].map(fee => {
+                            if (fee.amount <= 0) return null;
+                            const feePaid = (booking.payments || []).filter((p: any) => p.payment_type === fee.type).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+                            const isFullyPaid = feePaid >= fee.amount;
+                            return (
+                              <div key={fee.label} className="flex justify-between items-center text-sm">
+                                <div className="flex items-center gap-2 text-gray-700">
+                                  {isFullyPaid ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Clock className="w-4 h-4 text-amber-500" />}
+                                  <span>{fee.label}: <span className="font-bold text-gray-900">₹{formatNumber(fee.amount)}</span></span>
+                                </div>
+                                <span className={`text-xs font-semibold ${isFullyPaid ? 'text-emerald-600' : 'text-gray-500'}`}>
+                                  (Paid: ₹{formatNumber(feePaid)})
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Payment history */}
                       <div>
@@ -1031,11 +1067,12 @@ export default function PlotDetailsClient({
                       const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
                       if (activeBooking) {
                         const finalDeal = activeBooking.total_amount - (activeBooking.discount_amount || 0);
-                        const fees = (activeBookingId ? bookingFees[activeBookingId] : null) || { stampDuty: '0', legal: '0', maintenance: '0' };
+                        const fees = (activeBookingId ? bookingFees[activeBookingId] : null) || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
                         let amt = 0;
                         if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
                         if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);
                         if (type === 'Maintenance fees') amt = parseFee(fees.maintenance, finalDeal);
+                        if (type === 'Registration fees') amt = parseFee(fees.registration, finalDeal);
                         amountStr = amt > 0 ? amt.toString() : '';
                       }
                     }
@@ -1045,6 +1082,7 @@ export default function PlotDetailsClient({
                   <option value="Stamp duty fees">Stamp duty fees</option>
                   <option value="Legal fees">Legal fees</option>
                   <option value="Maintenance fees">Maintenance fees</option>
+                  <option value="Registration fees">Registration fees</option>
                 </select>
               </div>
 
@@ -1153,6 +1191,7 @@ export default function PlotDetailsClient({
                   stampDuty: formatFee(feeForm.stampDuty),
                   legal: formatFee(feeForm.legal),
                   maintenance: formatFee(feeForm.maintenance),
+                  registration: formatFee(feeForm.registration),
                 };
                 
                 setBookingFees(prev => ({
@@ -1208,6 +1247,20 @@ export default function PlotDetailsClient({
                   <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
                     value={feeForm.maintenance.type}
                     onChange={e => setFeeForm({ ...feeForm, maintenance: { ...feeForm.maintenance, type: e.target.value } })}>
+                    <option value="%">%</option>
+                    <option value="₹">₹</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Registration Fees</label>
+                <div className="flex">
+                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
+                    placeholder="0" value={feeForm.registration.value}
+                    onChange={e => setFeeForm({ ...feeForm, registration: { ...feeForm.registration, value: e.target.value } })} />
+                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
+                    value={feeForm.registration.type}
+                    onChange={e => setFeeForm({ ...feeForm, registration: { ...feeForm.registration, type: e.target.value } })}>
                     <option value="%">%</option>
                     <option value="₹">₹</option>
                   </select>
@@ -1572,6 +1625,53 @@ export default function PlotDetailsClient({
           </div>
         </div>
       )}
+
+      {/* Same-Plot Merge Modal */}
+      {showMergeSamePlotModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <GitMerge className="w-5 h-5 text-amber-500" />
+                Merge Booking
+              </h2>
+              <button onClick={() => setShowMergeSamePlotModal(false)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleMergeSamePlot} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Select Target Booking</label>
+                <select
+                  className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
+                  value={mergeSamePlotTargetId}
+                  onChange={(e) => setMergeSamePlotTargetId(e.target.value)}
+                  required
+                >
+                  <option value="" disabled>Select a booking...</option>
+                  {bookings.filter((b: any) => b.id !== mergeSourceBookingId).map((b: any) => (
+                    <option key={b.id} value={b.id}>
+                      Booking: {b.client?.name} {b.booking_partners?.length > 0 ? `(& ${b.booking_partners.length} partner${b.booking_partners.length > 1 ? 's' : ''})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-2">
+                  All payments from this booking will be moved to the target booking, and this client (along with any partners) will be added as a partner to the target booking.
+                </p>
+              </div>
+              <div className="flex gap-3 pt-4 border-t border-gray-100">
+                <button type="button" onClick={() => setShowMergeSamePlotModal(false)}
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
+                <button type="submit" disabled={isPending || !mergeSamePlotTargetId}
+                  className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg font-semibold text-sm hover:bg-amber-700 disabled:opacity-50">
+                  {isPending ? 'Processing...' : 'Confirm Merge'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

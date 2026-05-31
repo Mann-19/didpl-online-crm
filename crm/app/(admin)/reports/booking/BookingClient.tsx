@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Search, Calendar, FolderHeart, CheckCircle2, TrendingUp, Download, Printer } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
+import { parseFee } from '@/utils/parseFee';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
@@ -18,6 +19,11 @@ export default function BookingClient({ data }: { data: any[] }) {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+
+  const [showStampDuty, setShowStampDuty] = useState(false);
+  const [showLegalFees, setShowLegalFees] = useState(false);
+  const [showMaintenance, setShowMaintenance] = useState(false);
+  const [showRegistration, setShowRegistration] = useState(false);
 
   const handlePrintAllotmentLetter = async (booking: any) => {
     try {
@@ -72,24 +78,47 @@ export default function BookingClient({ data }: { data: any[] }) {
   };
 
   const handleExport = () => {
+    const headers = [
+      { label: 'Date', key: (r: any) => fmt(r.booking_date) },
+      { label: 'Booking Code', key: (r: any) => r.booking_code || '—' },
+      { label: 'Client', key: 'client_name' },
+      { label: 'Consultant', key: 'consultant_name' },
+      { label: 'Project', key: 'project_name' },
+      { label: 'Plot No.', key: 'plot_number' },
+      { label: 'Status', key: (r: any) => r.status.toUpperCase() },
+      { label: 'Agreed Price', key: (r: any) => `Rs. ${formatNumber(r.total_amount)}` },
+      { label: 'Discount', key: (r: any) => `Rs. ${formatNumber(r.discount_amount)}` },
+      { label: 'Final Deal', key: (r: any) => `Rs. ${formatNumber(r.final_deal)}` },
+      { label: 'Paid', key: (r: any) => `Rs. ${formatNumber(r.amount_paid)}` },
+      { label: 'Balance', key: (r: any) => `Rs. ${formatNumber(r.balance_due)}` }
+    ];
+
+    if (showStampDuty) headers.push({ label: 'Stamp Duty', key: (r: any) => {
+      const fees = r.booking_fees || {};
+      const amt = parseFee(fees.stamp_duty, r.final_deal);
+      return `Rs. ${formatNumber(amt)}`;
+    }});
+    if (showLegalFees) headers.push({ label: 'Legal Fees', key: (r: any) => {
+      const fees = r.booking_fees || {};
+      const amt = parseFee(fees.legal_fees, r.final_deal);
+      return `Rs. ${formatNumber(amt)}`;
+    }});
+    if (showMaintenance) headers.push({ label: 'Maintenance', key: (r: any) => {
+      const fees = r.booking_fees || {};
+      const amt = parseFee(fees.maintenance_fees, r.final_deal);
+      return `Rs. ${formatNumber(amt)}`;
+    }});
+    if (showRegistration) headers.push({ label: 'Registration', key: (r: any) => {
+      const fees = r.booking_fees || {};
+      const amt = parseFee(fees.registration_fees, r.final_deal);
+      return `Rs. ${formatNumber(amt)}`;
+    }});
+
     exportToPDF({
       title: 'Booking Report',
       filename: 'Booking_Report',
       data: filtered,
-      headers: [
-        { label: 'Date', key: (r) => fmt(r.booking_date) },
-        { label: 'Booking Code', key: (r) => r.booking_code || '—' },
-        { label: 'Client', key: 'client_name' },
-        { label: 'Consultant', key: 'consultant_name' },
-        { label: 'Project', key: 'project_name' },
-        { label: 'Plot No.', key: 'plot_number' },
-        { label: 'Status', key: (r) => r.status.toUpperCase() },
-        { label: 'Agreed Price', key: (r) => `Rs. ${formatNumber(r.total_amount)}` },
-        { label: 'Discount', key: (r) => `Rs. ${formatNumber(r.discount_amount)}` },
-        { label: 'Final Deal', key: (r) => `Rs. ${formatNumber(r.final_deal)}` },
-        { label: 'Paid', key: (r) => `Rs. ${formatNumber(r.amount_paid)}` },
-        { label: 'Balance', key: (r) => `Rs. ${formatNumber(r.balance_due)}` }
-      ]
+      headers
     });
   };
 
@@ -163,6 +192,26 @@ export default function BookingClient({ data }: { data: any[] }) {
                 {sortDir === 'asc' ? '↑ Asc' : '↓ Desc'}
               </button>
             </div>
+            
+            <div className="flex flex-wrap items-center gap-4 pt-2 mt-2 border-t border-gray-100">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fees:</span>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Stamp Duty
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Legal Fees
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Maintenance
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
+                Registration
+              </label>
+            </div>
           </div>
 
           {/* Table */}
@@ -179,6 +228,10 @@ export default function BookingClient({ data }: { data: any[] }) {
                   <th className="px-4 py-3 text-right">Final Deal</th>
                   <th className="px-4 py-3 text-right text-emerald-600">Paid</th>
                   <th className="px-4 py-3 text-right text-red-600">Balance</th>
+                  {showStampDuty && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Stamp Duty</th>}
+                  {showLegalFees && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Legal Fees</th>}
+                  {showMaintenance && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Maintenance</th>}
+                  {showRegistration && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Registration</th>}
                   <th className="px-4 py-3 text-center">Action</th>
                 </tr>
               </thead>
@@ -216,6 +269,26 @@ export default function BookingClient({ data }: { data: any[] }) {
                     <td className="px-4 py-4 text-right font-bold text-red-600 bg-red-50/30 group-hover:bg-red-50 transition-colors">
                       ₹{formatNumber(r.balance_due)}
                     </td>
+                    {showStampDuty && (
+                      <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
+                        ₹{formatNumber(parseFee(r.booking_fees?.stamp_duty, r.final_deal))}
+                      </td>
+                    )}
+                    {showLegalFees && (
+                      <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
+                        ₹{formatNumber(parseFee(r.booking_fees?.legal_fees, r.final_deal))}
+                      </td>
+                    )}
+                    {showMaintenance && (
+                      <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
+                        ₹{formatNumber(parseFee(r.booking_fees?.maintenance_fees, r.final_deal))}
+                      </td>
+                    )}
+                    {showRegistration && (
+                      <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
+                        ₹{formatNumber(parseFee(r.booking_fees?.registration_fees, r.final_deal))}
+                      </td>
+                    )}
                     <td className="px-4 py-4 text-center">
                       {r.status === 'confirmed' && (
                         <button
@@ -234,6 +307,27 @@ export default function BookingClient({ data }: { data: any[] }) {
                   <td colSpan={6} className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Bookings</td>
                   <td className="px-4 py-3 text-right font-bold text-gray-900">₹{formatNumber(totalValue)}</td>
                   <td className="px-4 py-3 text-right font-bold text-emerald-700">₹{formatNumber(totalPaid)}</td>
+                  <td colSpan={1} />
+                  {showStampDuty && (
+                    <td className="px-4 py-3 text-right font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.stamp_duty, r.final_deal), 0))}
+                    </td>
+                  )}
+                  {showLegalFees && (
+                    <td className="px-4 py-3 text-right font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.legal_fees, r.final_deal), 0))}
+                    </td>
+                  )}
+                  {showMaintenance && (
+                    <td className="px-4 py-3 text-right font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.maintenance_fees, r.final_deal), 0))}
+                    </td>
+                  )}
+                  {showRegistration && (
+                    <td className="px-4 py-3 text-right font-bold text-gray-700">
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.registration_fees, r.final_deal), 0))}
+                    </td>
+                  )}
                   <td colSpan={1} />
                 </tr>
               </tfoot>
