@@ -58,8 +58,8 @@ export default function RecoveryClient({ data }: { data: any[] }) {
       return `Rs. ${formatNumber(amt - paid)}`;
     }});
     if (showLegalFees) headers.push({ label: 'Legal Fees Balance', key: (r: any) => {
-      const amt = parseFee(r.booking_fees?.legal_fees, r.total_amount);
-      const paid = r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+      const amt = parseFee(r.booking_fees?.gov_fees, r.total_amount); // TEMPORARY_GOV_FEES_V200
+      const paid = r.payments?.filter((p: any) => p.payment_type === 'Gov fees' || p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
       return `Rs. ${formatNumber(amt - paid)}`;
     }});
     if (showMaintenance) headers.push({ label: 'Maintenance Balance', key: (r: any) => {
@@ -149,15 +149,18 @@ export default function RecoveryClient({ data }: { data: any[] }) {
           </div>
           
           <div className="flex flex-wrap items-center gap-4 px-4 pb-4 pt-1">
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Recoveries:</span>
+            {/* <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Recoveries:</span> */}
+            {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
               Stamp Duty
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+            */}
+            {/* <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
               Legal Fees
-            </label>
+            </label> */}
+            {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
             <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
               <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
               Maintenance
@@ -166,6 +169,7 @@ export default function RecoveryClient({ data }: { data: any[] }) {
               <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
               Registration
             </label>
+            */}
           </div>
 
           <div className="overflow-x-auto">
@@ -222,8 +226,8 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                       return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
                     })()}
                     {showLegalFees && (() => {
-                      const amt = parseFee(r.booking_fees?.legal_fees, r.total_amount);
-                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
+                      const amt = parseFee(r.booking_fees?.gov_fees, r.total_amount); // TEMPORARY_GOV_FEES_V200
+                      const paid = r.payments?.filter((p: any) => p.payment_type === 'Gov fees' || p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0;
                       return <td className="px-5 py-4 text-right font-bold text-gray-600 bg-gray-50/50">₹{formatNumber(Math.max(0, amt - paid))}</td>;
                     })()}
                     {showMaintenance && (() => {
@@ -251,7 +255,7 @@ export default function RecoveryClient({ data }: { data: any[] }) {
                   )}
                   {showLegalFees && (
                     <td className="px-5 py-3 text-right text-sm font-bold text-gray-700">
-                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.legal_fees, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + Math.max(0, parseFee(r.booking_fees?.gov_fees, r.total_amount) - (r.payments?.filter((p: any) => p.payment_type === 'Gov fees' || p.payment_type === 'Legal fees').reduce((s: number, p: any) => s + p.amount, 0) || 0)), 0))}
                     </td>
                   )}
                   {showMaintenance && (

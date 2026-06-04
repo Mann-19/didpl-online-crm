@@ -31,10 +31,11 @@ export default function LedgerClient({ data }: { data: any[] }) {
       
       // Fee toggle logic
       let feeMatch = true;
-      if (r.payment_type === 'Stamp duty fees' && !showStampDuty) feeMatch = false;
-      if (r.payment_type === 'Legal fees' && !showLegalFees) feeMatch = false;
-      if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
-      if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
+      // TEMPORARY_GOV_FEES_V200
+      // if (r.payment_type === 'Stamp duty fees' && !showStampDuty) feeMatch = false;
+      if ((r.payment_type === 'Gov fees' || r.payment_type === 'Legal fees') && !showLegalFees) feeMatch = false;
+      // if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
+      // if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
 
       return matchText && matchDate && matchType && feeMatch;
     })
@@ -127,14 +128,17 @@ export default function LedgerClient({ data }: { data: any[] }) {
             
             <div className="flex flex-wrap items-center gap-4 pt-1">
               <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fee Transactions:</span>
+              {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Stamp Duty
               </label>
+              */}
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Legal Fees
               </label>
+              {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Maintenance
@@ -143,6 +147,7 @@ export default function LedgerClient({ data }: { data: any[] }) {
                 <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Registration
               </label>
+              */}
             </div>
             
             <div className="flex flex-col md:flex-row gap-3 items-center pt-2 border-t border-gray-100">
@@ -188,7 +193,9 @@ export default function LedgerClient({ data }: { data: any[] }) {
                         {r.project_name ? `${r.project_name} — Plot ${r.plot_number}` : r.description || '—'}
                       </div>
                       {r.payment_type && r.payment_type !== 'Plot payment' && (
-                        <div className="text-xs text-amber-600 font-semibold mt-0.5">{r.payment_type}</div>
+                        <div className="text-xs text-amber-600 font-semibold mt-0.5">
+                          {r.payment_type === 'Gov fees' ? 'Legal Fees' : r.payment_type}
+                        </div>
                       )}
                     </td>
                     <td className="px-5 py-3">

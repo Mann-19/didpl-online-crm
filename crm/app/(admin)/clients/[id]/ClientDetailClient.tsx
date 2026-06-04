@@ -142,7 +142,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
         payment_date: editPaymentForm.payment_date,
         payment_mode: editPaymentForm.payment_mode,
         description: editPaymentForm.description,
-        transaction_id: editPaymentForm.transaction_id || undefined,
+        transaction_id: editPaymentForm.transaction_id || '',
       });
       if (result.success) {
         setShowEditPaymentModal(false);
@@ -600,14 +600,14 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                   </select>
                 </div>
               </div>
-              {editPaymentForm.payment_mode !== 'Cash' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
-                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPaymentForm.transaction_id}
-                    onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ref ID / Transaction ID {editPaymentForm.payment_mode === 'Cash' && <span className="text-gray-400 font-normal">(Optional)</span>}
+                </label>
+                <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                  value={editPaymentForm.transaction_id}
+                  onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"

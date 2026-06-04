@@ -100,7 +100,7 @@ export default function BookingClient({ data }: { data: any[] }) {
     }});
     if (showLegalFees) headers.push({ label: 'Legal Fees', key: (r: any) => {
       const fees = r.booking_fees || {};
-      const amt = parseFee(fees.legal_fees, r.final_deal);
+      const amt = parseFee(fees.gov_fees, r.final_deal); // TEMPORARY_GOV_FEES_V200: Using gov_fees
       return `Rs. ${formatNumber(amt)}`;
     }});
     if (showMaintenance) headers.push({ label: 'Maintenance', key: (r: any) => {
@@ -175,9 +175,9 @@ export default function BookingClient({ data }: { data: any[] }) {
               <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                 value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                 <option value="">All Statuses</option>
-                <option value="pending">Pending / Negotiation</option>
+                <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
-                <option value="cancelled">Cancelled</option>
+                {/* <option value="cancelled">Cancelled</option> */}
               </select>
               <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                 value={sortKey} onChange={e => setSortKey(e.target.value)}>
@@ -194,15 +194,18 @@ export default function BookingClient({ data }: { data: any[] }) {
             </div>
             
             <div className="flex flex-wrap items-center gap-4 pt-2 mt-2 border-t border-gray-100">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fees:</span>
+              {/* <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Include Fees:</span> */}
+              {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showStampDuty} onChange={e => setShowStampDuty(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Stamp Duty
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+              */}
+              {/* <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showLegalFees} onChange={e => setShowLegalFees(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Legal Fees
-              </label>
+              </label> */}
+              {/* TEMPORARY_GOV_FEES_V200: Hidden checkboxes
               <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                 <input type="checkbox" checked={showMaintenance} onChange={e => setShowMaintenance(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Maintenance
@@ -211,6 +214,7 @@ export default function BookingClient({ data }: { data: any[] }) {
                 <input type="checkbox" checked={showRegistration} onChange={e => setShowRegistration(e.target.checked)} className="rounded text-violet-600 focus:ring-violet-500" />
                 Registration
               </label>
+              */}
             </div>
           </div>
 
@@ -228,10 +232,11 @@ export default function BookingClient({ data }: { data: any[] }) {
                   <th className="px-4 py-3 text-right">Final Deal</th>
                   <th className="px-4 py-3 text-right text-emerald-600">Paid</th>
                   <th className="px-4 py-3 text-right text-red-600">Balance</th>
-                  {showStampDuty && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Stamp Duty</th>}
+                  {/* TEMPORARY_GOV_FEES_V200 */}
+                  {/* {showStampDuty && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Stamp Duty</th>} */}
                   {showLegalFees && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Legal Fees</th>}
-                  {showMaintenance && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Maintenance</th>}
-                  {showRegistration && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Registration</th>}
+                  {/* {showMaintenance && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Maintenance</th>} */}
+                  {/* {showRegistration && <th className="px-4 py-3 text-right text-gray-500 whitespace-normal min-w-[100px]">Registration</th>} */}
                   <th className="px-4 py-3 text-center">Action</th>
                 </tr>
               </thead>
@@ -269,17 +274,18 @@ export default function BookingClient({ data }: { data: any[] }) {
                     <td className="px-4 py-4 text-right font-bold text-red-600 bg-red-50/30 group-hover:bg-red-50 transition-colors">
                       ₹{formatNumber(r.balance_due)}
                     </td>
-                    {showStampDuty && (
+                    {/* TEMPORARY_GOV_FEES_V200 */}
+                    {/* {showStampDuty && (
                       <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
                         ₹{formatNumber(parseFee(r.booking_fees?.stamp_duty, r.final_deal))}
                       </td>
-                    )}
+                    )} */}
                     {showLegalFees && (
                       <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
-                        ₹{formatNumber(parseFee(r.booking_fees?.legal_fees, r.final_deal))}
+                        ₹{formatNumber(parseFee(r.booking_fees?.gov_fees, r.final_deal))}
                       </td>
                     )}
-                    {showMaintenance && (
+                    {/* {showMaintenance && (
                       <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
                         ₹{formatNumber(parseFee(r.booking_fees?.maintenance_fees, r.final_deal))}
                       </td>
@@ -288,7 +294,7 @@ export default function BookingClient({ data }: { data: any[] }) {
                       <td className="px-4 py-4 text-right text-gray-600 bg-gray-50/50">
                         ₹{formatNumber(parseFee(r.booking_fees?.registration_fees, r.final_deal))}
                       </td>
-                    )}
+                    )} */}
                     <td className="px-4 py-4 text-center">
                       {r.status === 'confirmed' && (
                         <button
@@ -308,17 +314,18 @@ export default function BookingClient({ data }: { data: any[] }) {
                   <td className="px-4 py-3 text-right font-bold text-gray-900">₹{formatNumber(totalValue)}</td>
                   <td className="px-4 py-3 text-right font-bold text-emerald-700">₹{formatNumber(totalPaid)}</td>
                   <td colSpan={1} />
-                  {showStampDuty && (
+                  {/* TEMPORARY_GOV_FEES_V200 */}
+                  {/* {showStampDuty && (
                     <td className="px-4 py-3 text-right font-bold text-gray-700">
                       ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.stamp_duty, r.final_deal), 0))}
                     </td>
-                  )}
+                  )} */}
                   {showLegalFees && (
                     <td className="px-4 py-3 text-right font-bold text-gray-700">
-                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.legal_fees, r.final_deal), 0))}
+                      ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.gov_fees, r.final_deal), 0))}
                     </td>
                   )}
-                  {showMaintenance && (
+                  {/* {showMaintenance && (
                     <td className="px-4 py-3 text-right font-bold text-gray-700">
                       ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.maintenance_fees, r.final_deal), 0))}
                     </td>
@@ -327,7 +334,7 @@ export default function BookingClient({ data }: { data: any[] }) {
                     <td className="px-4 py-3 text-right font-bold text-gray-700">
                       ₹{formatNumber(filtered.reduce((sum, r) => sum + parseFee(r.booking_fees?.registration_fees, r.final_deal), 0))}
                     </td>
-                  )}
+                  )} */}
                   <td colSpan={1} />
                 </tr>
               </tfoot>

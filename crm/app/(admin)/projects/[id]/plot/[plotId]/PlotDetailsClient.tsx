@@ -62,7 +62,7 @@ export default function PlotDetailsClient({
   // Fees calculation state (UI only)
   const [showFeesModal, setShowFeesModal] = useState(false);
   const [activeFeeBookingId, setActiveFeeBookingId] = useState<string | null>(null);
-  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number }>>({});
+  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number, govFees?: string | number }>>({}); // TEMPORARY_GOV_FEES_V200: added govFees
   
   // Sync state with props when data is refreshed
   useEffect(() => {
@@ -75,7 +75,8 @@ export default function PlotDetailsClient({
             stampDuty: bf.stamp_duty || 0,
             legal: bf.legal_fees || 0,
             maintenance: bf.maintenance_fees || 0,
-            registration: bf.registration_fees || 0
+            registration: bf.registration_fees || 0,
+            govFees: bf.gov_fees || 0 // TEMPORARY_GOV_FEES_V200
           };
         }
       }
@@ -158,7 +159,7 @@ export default function PlotDetailsClient({
         client_id: selectedClientId,
         total_amount: parseFloat(addClientForm.total_amount) || plot.price || 0,
         discount_amount: parseFloat(addClientForm.discount_amount) || 0,
-        consultant_id: addClientForm.consultant_id || undefined,
+        consultant_id: addClientForm.consultant_id || '',
         commission_percent: parseFloat(addClientForm.commission_percent) || 0,
       };
 
@@ -412,7 +413,7 @@ export default function PlotDetailsClient({
         payment_date: editPaymentForm.payment_date,
         payment_mode: editPaymentForm.payment_mode,
         description: editPaymentForm.description,
-        transaction_id: editPaymentForm.transaction_id || undefined,
+        transaction_id: editPaymentForm.transaction_id || '',
         payment_type: editPaymentForm.payment_type
       });
       if (result.success) {
@@ -445,7 +446,7 @@ export default function PlotDetailsClient({
         payment_date: paymentForm.date,
         payment_mode: paymentForm.mode,
         description: paymentForm.description,
-        transaction_id: paymentForm.transaction_id || undefined,
+        transaction_id: paymentForm.transaction_id || '',
         entity_id: paymentForm.entity_id || activeClientId || '',
         payment_type: paymentForm.payment_type
       };
@@ -660,11 +661,12 @@ export default function PlotDetailsClient({
             ) : (
               bookings.map((booking: any) => {
                 const finalDeal = booking.total_amount - (booking.discount_amount || 0);
-                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
+                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0', govFees: '0' };
                 const stampDutyAmount = parseFee(fees.stampDuty, finalDeal);
                 const legalFeesAmount = parseFee(fees.legal, finalDeal);
                 const maintenanceAmount = parseFee(fees.maintenance, finalDeal);
                 const registrationFeesAmount = parseFee(fees.registration, finalDeal);
+                const govFeesAmount = parseFee(fees.govFees, finalDeal); // TEMPORARY_GOV_FEES_V200
                 const grandTotal = finalDeal; // Fees are strictly excluded from plot value
 
                 // Plot paid amount (UI fallback calculated from payments if trigger is delayed)
@@ -833,7 +835,7 @@ export default function PlotDetailsClient({
                           <button
                             onClick={() => {
                               setActiveFeeBookingId(booking.id);
-                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
+                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0', govFees: '0' };
                               const parseState = (val: string | number | undefined) => {
                                 if (!val || val === '0') return { value: '', type: '%' };
                                 const str = String(val).trim();
@@ -842,7 +844,7 @@ export default function PlotDetailsClient({
                               };
                               setFeeForm({
                                 stampDuty: parseState(existing.stampDuty),
-                                legal: parseState(existing.legal),
+                                legal: parseState(existing.govFees), // TEMPORARY_GOV_FEES_V200: Using govFees for the single 'Legal fees' input
                                 maintenance: parseState(existing.maintenance),
                                 registration: parseState(existing.registration)
                               });
@@ -856,6 +858,7 @@ export default function PlotDetailsClient({
                       </div>
 
                       {/* Government & Additional Fees Section */}
+                      {/* TEMPORARY_GOV_FEES_V200: Hidden the old fees section
                       {(stampDutyAmount > 0 || legalFeesAmount > 0 || maintenanceAmount > 0 || registrationFeesAmount > 0) && (
                         <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100 space-y-3 mb-4">
                           <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">Government & Additional Fees</h4>
@@ -883,6 +886,46 @@ export default function PlotDetailsClient({
                           })}
                         </div>
                       )}
+                      */}
+
+                      {/* TEMPORARY_GOV_FEES_V200: New Legal Fees section */}
+                      {govFeesAmount > 0 && (() => {
+                        const feePaid = (booking.payments || []).filter((p: any) => p.payment_type === 'Gov fees').reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+                        const isFullyPaid = feePaid >= govFeesAmount;
+                        const feePaymentPct = Math.round((feePaid / govFeesAmount) * 100);
+                        return (
+                          <div className="bg-violet-50/50 rounded-xl p-4 border border-violet-100 space-y-3 mb-4">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="text-xs font-bold text-violet-800 uppercase tracking-wider">Legal Fees</h4>
+                              {booking.status !== 'cancelled' && (isAdmin || isEmployee) && !isFullyPaid && (
+                                <button
+                                  onClick={() => {
+                                    setActiveBookingId(booking.id);
+                                    setActiveClientId(booking.client_id);
+                                    setPaymentForm(prev => ({ ...prev, payment_type: 'Gov fees' }));
+                                    setShowPaymentModal(true);
+                                  }}
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
+                                >
+                                  <HandCoins className="w-3 h-3" /> Add Fee
+                                </button>
+                              )}
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600">Total Legal Fees</span>
+                              <span className="font-bold text-gray-900">₹{formatNumber(govFeesAmount)}</span>
+                            </div>
+                            <div className="pt-1">
+                              <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                <span>Paid: ₹{formatNumber(feePaid)}</span><span>{feePaymentPct}%</span>
+                              </div>
+                              <div className="w-full bg-violet-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-violet-500 h-full rounded-full transition-all" style={{ width: `${Math.min(feePaymentPct, 100)}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Payment history */}
                       <div>
@@ -890,7 +933,7 @@ export default function PlotDetailsClient({
                           <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment History</h4>
                           {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
                             <button
-                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setShowPaymentModal(true); }}
+                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setPaymentForm(prev => ({ ...prev, payment_type: 'Plot payment' })); setShowPaymentModal(true); }}
                               className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
                             >
                               <HandCoins className="w-3 h-3" /> {isEmployee ? 'Request Payment' : 'Add Payment'}
@@ -1057,6 +1100,14 @@ export default function PlotDetailsClient({
               <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={handleAddPayment} className="space-y-4">
+              {/* TEMPORARY_GOV_FEES_V200: Replaced dropdown with static text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <div className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-gray-50">
+                  {paymentForm.payment_type === 'Gov fees' ? 'Legal Fees' : paymentForm.payment_type}
+                </div>
+              </div>
+              {/* TEMPORARY_GOV_FEES_V200: Hidden old dropdown
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
                 <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
@@ -1085,6 +1136,7 @@ export default function PlotDetailsClient({
                   <option value="Registration fees">Registration fees</option>
                 </select>
               </div>
+              */}
 
               {(() => {
                 const activeBkg = bookings.find((b: any) => b.id === activeBookingId);
@@ -1112,8 +1164,8 @@ export default function PlotDetailsClient({
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
                 <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-500"
-                  disabled={isPending || paymentForm.payment_type !== 'Plot payment'}
-                  placeholder={paymentForm.payment_type !== 'Plot payment' && !paymentForm.amount ? 'Calculate fee first' : ''}
+                  disabled={isPending || (paymentForm.payment_type !== 'Plot payment' && paymentForm.payment_type !== 'Gov fees')}
+                  placeholder={(paymentForm.payment_type !== 'Plot payment' && paymentForm.payment_type !== 'Gov fees') && !paymentForm.amount ? 'Calculate fee first' : ''}
                   value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
               </div>
               <div>
@@ -1131,6 +1183,13 @@ export default function PlotDetailsClient({
                   <option>UPI</option>
                   <option>NEFT/IMPS/RTGS</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ref ID / Transaction ID {paymentForm.mode === 'Cash' && <span className="text-gray-400 font-normal">(Optional)</span>}
+                </label>
+                <input className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
+                  value={paymentForm.transaction_id} onChange={e => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })} />
               </div>
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={handleCloseModal}
@@ -1192,6 +1251,7 @@ export default function PlotDetailsClient({
                   legal: formatFee(feeForm.legal),
                   maintenance: formatFee(feeForm.maintenance),
                   registration: formatFee(feeForm.registration),
+                  govFees: formatFee(feeForm.legal), // TEMPORARY_GOV_FEES_V200: store 'legal' form input into govFees
                 };
                 
                 setBookingFees(prev => ({
@@ -1210,6 +1270,7 @@ export default function PlotDetailsClient({
                 });
               }
             }} className="space-y-4">
+              {/* TEMPORARY_GOV_FEES_V200: Hid Stamp Duty
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty</label>
                 <div className="flex">
@@ -1224,6 +1285,7 @@ export default function PlotDetailsClient({
                   </select>
                 </div>
               </div>
+              */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Legal Fees</label>
                 <div className="flex">
@@ -1238,6 +1300,7 @@ export default function PlotDetailsClient({
                   </select>
                 </div>
               </div>
+              {/* TEMPORARY_GOV_FEES_V200: Hid Maintenance and Registration
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance</label>
                 <div className="flex">
@@ -1266,6 +1329,7 @@ export default function PlotDetailsClient({
                   </select>
                 </div>
               </div>
+              */}
               <div className="flex gap-3 pt-2">
                 <button type="button" onClick={handleCloseModal}
                   className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
@@ -1445,14 +1509,14 @@ export default function PlotDetailsClient({
                   </select>
                 </div>
               </div>
-              {editPaymentForm.payment_mode !== 'Cash' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Transaction ID / Cheque No.</label>
-                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPaymentForm.transaction_id}
-                    onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Ref ID / Transaction ID {editPaymentForm.payment_mode === 'Cash' && <span className="text-gray-400 font-normal">(Optional)</span>}
+                </label>
+                <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
+                  value={editPaymentForm.transaction_id}
+                  onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                 <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"

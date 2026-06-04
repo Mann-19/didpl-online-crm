@@ -389,7 +389,7 @@ export async function removePartnerFromBooking(
         discount_amount: originalBooking.discount_amount || 0,
         consultant_id: originalBooking.consultant_id || null,
         commission_percent: originalBooking.commission_percent || 0,
-        status: 'cancelled',
+        status: 'pending',
         booking_type: 'single'
       }])
       .select('id')
@@ -658,7 +658,8 @@ export async function deleteChangeRequest(id: string) {
   return { success: true }
 }
 
-export async function updateBookingFees(bookingId: string, fees: { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number }) {
+// TEMPORARY_GOV_FEES_V200: Added govFees
+export async function updateBookingFees(bookingId: string, fees: { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number, govFees?: string | number }) {
   const supabase = await createClient()
   const { error } = await supabase.from('booking_fees').upsert({
     booking_id: bookingId,
@@ -666,6 +667,7 @@ export async function updateBookingFees(bookingId: string, fees: { stampDuty: st
     legal_fees: fees.legal,
     maintenance_fees: fees.maintenance,
     registration_fees: fees.registration,
+    gov_fees: fees.govFees, // TEMPORARY_GOV_FEES_V200
     updated_at: new Date().toISOString()
   }, { onConflict: 'booking_id' })
   

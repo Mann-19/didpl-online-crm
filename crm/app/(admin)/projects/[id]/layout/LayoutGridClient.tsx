@@ -41,15 +41,22 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         relevantBookings = allBookings.filter((b: any) => b.status === 'pending');
       }
 
-      // Map bookings to necessary overlay data
       const mappedBookings = relevantBookings.map((b: any) => {
         const totalAmount = b.total_amount - (b.discount_amount || 0);
-        const payments = b.payments || [];
-        const amountPaid = payments.reduce((sum: number, pay: any) => sum + (Number(pay.amount) || 0), 0);
+        const amountPaid = Number(b.amount_paid) || 0;
         const percent = totalAmount > 0 ? (amountPaid / totalAmount) * 100 : 0;
+        
+        let clientName = b.client?.name || "—";
+        if (b.booking_partners && b.booking_partners.length > 0) {
+            const partnerNames = b.booking_partners.map((bp: any) => bp.client?.name).filter(Boolean);
+            if (partnerNames.length > 0) {
+                clientName += ' + ' + partnerNames.join(', ');
+            }
+        }
+
         return {
           id: b.id,
-          clientName: b.client?.name || "—",
+          clientName: clientName,
           status: b.status,
           amountPaid: `₹${parseInt(String(amountPaid)).toLocaleString("en-IN")}`,
           paymentPercentage: Math.round(percent)
