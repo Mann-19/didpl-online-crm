@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, User, Phone, Mail, MapPin, Briefcase,
-  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar, Clock, Trash2, Printer
+  CreditCard, Building2, Edit2, X, Save, ExternalLink, Calendar, Clock, Trash2, Printer, FileText
 } from 'lucide-react';
 import { formatNumber } from '@/utils/formatNumber';
 import { updateClient, deleteClient, updateClientPayment, deleteClientPayment } from '../../people.actions';
@@ -12,6 +12,7 @@ import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import { Toast, useToast } from '@/components/ui/Toast';
 import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
+import DocumentSection from '@/components/documents/DocumentSection';
 
 const InfoRow = ({ icon: Icon, label, value }: any) => (
   <div className="grid grid-cols-3 gap-4 items-start py-2.5 border-b border-gray-50 last:border-0">
@@ -326,7 +327,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                         <td className="px-5 py-4 text-right">
                           {projectId && plotId && (
                             <Link
-                              href={`/projects/${projectId}/plot/${plotId}`}
+                              href={`/projects/${b.plots?.project_id}/plot/${b.plots?.id}/booking/${b.id}`}
                               className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
                             >
                               Manage <ExternalLink className="w-3 h-3" />
@@ -419,6 +420,10 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
             <div className="p-12 text-center text-gray-400 text-sm">No payments recorded yet.</div>
           )}
         </div>
+
+        {/* DOCUMENTS */}
+        <DocumentSection clientId={client.id} />
+
       </div>
 
       {/* EDIT MODAL */}

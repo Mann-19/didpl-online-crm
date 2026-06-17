@@ -7,6 +7,7 @@ export default function PlotsDataTable({ plots, projectId }: { plots: any[], pro
   
   const getStatusBadge = (status: string) => {
     if (status === 'available') return { emoji: '🟢', label: 'Available', color: 'bg-green-100 text-green-800' }
+    if (status === 'allotted') return { emoji: '🔵', label: 'Allotted', color: 'bg-blue-100 text-blue-800' }
     if (status === 'token_paid') return { emoji: '🟡', label: 'Token Paid', color: 'bg-yellow-100 text-yellow-800' }
     if (status === 'sold') return { emoji: '🔴', label: 'Sold', color: 'bg-red-100 text-red-800' }
     if (status === 'fully_paid') return { emoji: '🟣', label: 'Fully Paid', color: 'bg-purple-100 text-purple-800' }

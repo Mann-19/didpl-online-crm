@@ -173,6 +173,19 @@ export default async function ProjectOverviewPage({
               </div>
             </Link>
 
+            {/* Allotted */}
+            <Link href={`/projects/${projectId}/clients?status=allotted`} className="aspect-square bg-white p-3 rounded-xl border border-gray-200 flex flex-col justify-between hover:border-blue-300 hover:shadow-md transition-all group">
+              <div className="flex justify-between items-start">
+                <div className="p-1.5 rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <p className="text-xl font-bold text-blue-600">{project.allottedPlots || 0}</p>
+                <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mt-0.5">Allotted</p>
+              </div>
+            </Link>
+
             {/* Fully Paid */}
             <Link href={`/projects/${projectId}/clients?status=fully_paid`} className="aspect-square bg-white p-3 rounded-xl border border-gray-200 flex flex-col justify-between hover:border-purple-300 hover:shadow-md transition-all group">
               <div className="flex justify-between items-start">

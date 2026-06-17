@@ -1,98 +1,26 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   ArrowLeft, User, Users, Plus, Ruler, Banknote, Trophy,
-  CheckCircle2, XCircle, Percent, HandCoins, Search, X, Printer, Clock,
-  Edit2, Trash2, UserPlus, GitMerge
+  ChevronRight, XCircle, CheckCircle2, GitMerge, Trash2, X
 } from 'lucide-react';
 import Link from 'next/link';
 import { formatNumber } from '@/utils/formatNumber';
-import { parseFee } from '@/utils/parseFee';
-import {
-  createBooking, addPayment, confirmBooking,
-  cancelBooking, updateBookingDiscount, revertBooking,
-  updatePlot, updateBooking, updatePayment, deletePayment,
-  transferBooking, getTransferablePlotsForClient,
-  addPartnerToBooking, removePartnerFromBooking, mergeTransferIntoPartnership,
-  updateBookingFees, mergeBookingsOnSamePlot
-} from '../../../../plots.actions';
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
-import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
-import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
 import { Toast, useToast } from '@/components/ui/Toast';
+import { 
+  createBooking, confirmBooking, cancelBooking, addPayment, 
+  transferBooking, getTransferablePlotsForClient, mergeTransferIntoPartnership
+} from '../../../../plots.actions';
 
 export default function PlotDetailsClient({
-  initialPlot, clients, consultants, projectId, isAdmin, role
+  initialPlot, clients, projectId, isAdmin, role
 }: any) {
-  const [plot, setPlot] = useState(initialPlot);
+  const [plot] = useState(initialPlot);
 
-  // Modal visibility
+  // Modals
   const [showAddClientModal, setShowAddClientModal] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [showDiscountModal, setShowDiscountModal] = useState(false);
-
-  // Active booking context
-  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
-  const [activeClientId, setActiveClientId] = useState<string | null>(null);
-
-  // PDF Preview Modal
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [pdfFileName, setPdfFileName] = useState('');
-
-  // Transfer Modal
-  const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferBookingId, setTransferBookingId] = useState<string | null>(null);
-  const [availablePlots, setAvailablePlots] = useState<any[]>([]);
-  const [selectedNewPlotId, setSelectedNewPlotId] = useState('');
-
-  // Partner modal state
-  const [showAddPartnerModal, setShowAddPartnerModal] = useState(false);
-  const [showMergeSamePlotModal, setShowMergeSamePlotModal] = useState(false);
-  const [mergeSourceBookingId, setMergeSourceBookingId] = useState<string | null>(null);
-  const [mergeSamePlotTargetId, setMergeSamePlotTargetId] = useState('');
-  const [partnerBookingId, setPartnerBookingId] = useState<string | null>(null);
-  const [partnerSearch, setPartnerSearch] = useState('');
-  const [selectedPartnerId, setSelectedPartnerId] = useState('');
-  // Merge transfer state
-  const [isMergeTransfer, setIsMergeTransfer] = useState(false);
-  const [mergeTargetBookingId, setMergeTargetBookingId] = useState<string | null>(null);
-
-  // Fees calculation state (UI only)
-  const [showFeesModal, setShowFeesModal] = useState(false);
-  const [activeFeeBookingId, setActiveFeeBookingId] = useState<string | null>(null);
-  const [bookingFees, setBookingFees] = useState<Record<string, { stampDuty: string | number, legal: string | number, maintenance: string | number, registration: string | number, govFees?: string | number }>>({}); // TEMPORARY_GOV_FEES_V200: added govFees
-  
-  // Sync state with props when data is refreshed
-  useEffect(() => {
-    const initialFees: Record<string, any> = {};
-    (initialPlot?.bookings || []).forEach((b: any) => {
-      if (b.booking_fees) {
-        const bf = Array.isArray(b.booking_fees) ? b.booking_fees[0] : b.booking_fees;
-        if (bf) {
-          initialFees[b.id] = {
-            stampDuty: bf.stamp_duty || 0,
-            legal: bf.legal_fees || 0,
-            maintenance: bf.maintenance_fees || 0,
-            registration: bf.registration_fees || 0,
-            govFees: bf.gov_fees || 0 // TEMPORARY_GOV_FEES_V200
-          };
-        }
-      }
-    });
-    setBookingFees(prev => ({ ...prev, ...initialFees }));
-  }, [initialPlot]);
-
-  const [feeForm, setFeeForm] = useState({ 
-    stampDuty: { value: '', type: '%' }, 
-    legal: { value: '', type: '%' }, 
-    maintenance: { value: '', type: '%' },
-    registration: { value: '', type: '%' }
-  });
-
-  const [isPending, startTransition] = React.useTransition();
-  const { toast, showToast, hideToast } = useToast();
 
   // Add Client form
   const [clientSearch, setClientSearch] = useState('');
@@ -104,50 +32,28 @@ export default function PlotDetailsClient({
     commission_percent: ''
   });
 
-  // Payment form
+  // Payment Modal
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [activeBookingId, setActiveBookingId] = useState<string | null>(null);
   const [paymentForm, setPaymentForm] = useState({
     amount: '', date: new Date().toISOString().split('T')[0], mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment', entity_id: ''
   });
 
-  // Discount form
-  const [discountValue, setDiscountValue] = useState('');
+  // Transfer Modal
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [availablePlots, setAvailablePlots] = useState<any[]>([]);
+  const [selectedNewPlotId, setSelectedNewPlotId] = useState('');
+  const [isMergeTransfer, setIsMergeTransfer] = useState(false);
+  const [mergeTargetBookingId, setMergeTargetBookingId] = useState<string | null>(null);
+  const [transferBookingId, setTransferBookingId] = useState<string | null>(null);
 
-  // Master admin modals
-  const [showEditPlotModal, setShowEditPlotModal] = useState(false);
-  const [showEditBookingModal, setShowEditBookingModal] = useState(false);
-  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
-  const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
+  const [isPending, startTransition] = React.useTransition();
+  const { toast, showToast, hideToast } = useToast();
 
-  // Edit forms
-  const [editPlotForm, setEditPlotForm] = useState({
-    plot_number: String(plot.plot_number || ''),
-    area_sqyd: String(plot.area_sqyd || ''),
-    price: String(plot.price || ''),
-    status: plot.status || 'available',
-  });
-  const [editBookingForm, setEditBookingForm] = useState({
-    total_amount: '',
-    discount_amount: '',
-    commission_percent: '',
-    status: 'pending',
-  });
-  const [editPaymentForm, setEditPaymentForm] = useState({
-    id: '', amount: '', payment_date: '', payment_mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment'
-  });
-
-  // SSR-safe today date
-  useEffect(() => {
-    setPaymentForm(prev => ({
-      ...prev,
-      date: prev.date || new Date().toISOString().split('T')[0]
-    }));
-  }, []);
-
+  const isEmployee = role === 'employee';
   const reload = () => window.location.reload();
 
-  // ---- ACTIONS ----
-  const isEmployee = role === 'employee';
-  const isMasterAdmin = role === 'master_admin';
+  // --- ACTIONS ---
 
   const handleAddClient = (e: React.FormEvent) => {
     e.preventDefault();
@@ -190,13 +96,83 @@ export default function PlotDetailsClient({
     });
   };
 
-  const openTransferModal = async (bookingId: string) => {
-    const booking = bookings.find((b: any) => b.id === bookingId);
+  const handleConfirm = (bookingId: string, clientId: string) => {
+    if (!confirm('Confirm this client as the plot owner?')) return;
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find(b => b.id === bookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking', entity_id: bookingId, operation: 'update',
+          payload: { status: 'confirmed' },
+          description: `Confirm booking for "${booking?.client?.name}" on plot ${plot.plot_number}`,
+        });
+        if (result.success) showToast('Confirmation request sent for approval', 'warning');
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await confirmBooking(bookingId, plot.id, clientId);
+        if (result.success) { showToast('Owner confirmed', 'success'); setTimeout(reload, 800); }
+        else showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const handleCancel = (bookingId: string) => {
+    if (!confirm('Remove this negotiation? This cannot be undone.')) return;
+    startTransition(async () => {
+      if (isEmployee) {
+        const booking = bookings.find(b => b.id === bookingId);
+        const result = await submitChangeRequest({
+          entity_type: 'booking', entity_id: bookingId, operation: 'delete', payload: {},
+          description: `Remove booking negotiation for "${booking?.client?.name}" on plot ${plot.plot_number}`,
+        });
+        if (result.success) showToast('Cancellation request sent for approval', 'warning');
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await cancelBooking(bookingId, plot.id);
+        if (result.success) { showToast('Negotiation removed', 'success'); setTimeout(reload, 800); }
+        else showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const handleAddPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeBookingId) return;
+    const booking = bookings.find(b => b.id === activeBookingId);
+    
+    startTransition(async () => {
+      const payload = {
+        booking_id: activeBookingId,
+        amount: parseFloat(paymentForm.amount),
+        payment_date: paymentForm.date,
+        payment_mode: paymentForm.mode,
+        description: paymentForm.description,
+        transaction_id: paymentForm.transaction_id || '',
+        entity_id: paymentForm.entity_id || booking.client_id,
+        payment_type: paymentForm.payment_type
+      };
+
+      if (isEmployee) {
+        const result = await submitChangeRequest({
+          entity_type: 'payment', operation: 'create', payload,
+          description: `New payment of ₹${formatNumber(payload.amount)} for plot ${plot.plot_number} (${booking?.client?.name})`,
+        });
+        if (result.success) { showToast('Payment request submitted for review', 'warning'); setShowPaymentModal(false); }
+        else showToast(result.error || 'Failed', 'error');
+      } else {
+        const result = await addPayment(payload);
+        if (result.success) { showToast('Payment recorded successfully', 'success'); setShowPaymentModal(false); setTimeout(reload, 800); }
+        else showToast(result.error || 'Failed', 'error');
+      }
+    });
+  };
+
+  const openTransferModal = async (bookingId: string, clientId: string) => {
     setTransferBookingId(bookingId);
     setSelectedNewPlotId('');
     setIsMergeTransfer(false);
     setMergeTargetBookingId(null);
-    const plots = await getTransferablePlotsForClient(projectId, booking?.client_id || '');
+    const plots = await getTransferablePlotsForClient(projectId, clientId);
     setAvailablePlots(plots);
     setShowTransferModal(true);
   };
@@ -218,369 +194,54 @@ export default function PlotDetailsClient({
         if (result.success) {
           showToast('Merged into partnership booking successfully', 'success');
           setShowTransferModal(false);
-          setTimeout(reload, 800);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
+          setTimeout(() => window.location.href = `/projects/${projectId}/plot/${actualPlotId}`, 800);
+        } else showToast(result.error || 'Failed', 'error');
       } else if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === transferBookingId);
+        const booking = bookings.find(b => b.id === transferBookingId);
         const result = await submitChangeRequest({
-          entity_type: 'booking',
-          entity_id: transferBookingId,
-          operation: 'update',
-          payload: { plot_id: actualPlotId },
-          description: `Transfer booking for "${booking?.client?.name}" from plot ${plot.plot_number} to plot ${selectedPlot.plot_number}`,
+          entity_type: 'booking', entity_id: transferBookingId, operation: 'update', payload: { plot_id: actualPlotId },
+          description: `Transfer booking for "${booking?.client?.name}" to plot ${selectedPlot.plot_number}`,
         });
         if (result.success) {
           showToast('Transfer request submitted for approval', 'warning');
           setShowTransferModal(false);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
+        } else showToast(result.error || 'Failed', 'error');
       } else {
         const result = await transferBooking(transferBookingId, actualPlotId);
         if (result.success) {
           showToast('Plot transferred successfully', 'success');
           setShowTransferModal(false);
-          setTimeout(reload, 800);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
-      }
-    });
-  };
-
-  const handleAddPartner = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!partnerBookingId || !selectedPartnerId) { alert('Select a partner client'); return; }
-    startTransition(async () => {
-      const result = await addPartnerToBooking(partnerBookingId, selectedPartnerId);
-      if (result.success) {
-        showToast('Partner added successfully', 'success');
-        setShowAddPartnerModal(false);
-        setTimeout(reload, 800);
-      } else {
-        showToast(result.error || 'Failed', 'error');
-      }
-    });
-  };
-
-  const handleRemovePartner = (bookingId: string, partnerClientId: string) => {
-    if (!confirm('Remove this partner from the booking?')) return;
-    startTransition(async () => {
-      const result = await removePartnerFromBooking(bookingId, partnerClientId);
-      if (result.success) {
-        showToast('Partner removed', 'success');
-        setTimeout(reload, 800);
-      } else {
-        showToast(result.error || 'Failed', 'error');
-      }
-    });
-  };
-
-  const handleMergeSamePlot = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mergeSourceBookingId || !mergeSamePlotTargetId) return;
-
-    startTransition(async () => {
-      const result = await mergeBookingsOnSamePlot(mergeSourceBookingId, mergeSamePlotTargetId);
-      if (result.success) {
-        showToast('Successfully merged bookings', 'success');
-        setShowMergeSamePlotModal(false);
-        setTimeout(reload, 800);
-      } else {
-        showToast(result.error || 'Failed to merge bookings', 'error');
-      }
-    });
-  };
-
-  const handleConfirm = (bookingId: string, clientId: string) => {
-    if (!confirm('Confirm this client as the plot owner? All other negotiations will be cancelled.')) return;
-
-    startTransition(async () => {
-      if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === bookingId);
-        const result = await submitChangeRequest({
-          entity_type: 'booking',
-          entity_id: bookingId,
-          operation: 'update',
-          payload: { status: 'confirmed' },
-          description: `Confirm booking for "${booking?.client?.name}" on plot ${plot.plot_number}`,
-        });
-        if (result.success) showToast('Confirmation request sent for approval', 'warning');
-        else showToast(result.error || 'Failed', 'error');
-      } else {
-        const result = await confirmBooking(bookingId, plot.id, clientId);
-        if (result.success) {
-          showToast('Owner confirmed', 'success');
-          setTimeout(reload, 800);
+          setTimeout(() => window.location.href = `/projects/${projectId}/plot/${actualPlotId}/booking/${transferBookingId}`, 800);
         } else showToast(result.error || 'Failed', 'error');
       }
     });
   };
 
-  const handleCancel = (bookingId: string) => {
-    if (!confirm('Remove this negotiation? This cannot be undone.')) return;
 
-    startTransition(async () => {
-      if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === bookingId);
-        const result = await submitChangeRequest({
-          entity_type: 'booking',
-          entity_id: bookingId,
-          operation: 'delete',
-          payload: {},
-          description: `Remove booking negotiation for "${booking?.client?.name}" on plot ${plot.plot_number}`,
-        });
-        if (result.success) showToast('Cancellation request sent for approval', 'warning');
-        else showToast(result.error || 'Failed', 'error');
-      } else {
-        const result = await cancelBooking(bookingId, plot.id);
-        if (result.success) {
-          showToast('Negotiation removed', 'success');
-          setTimeout(reload, 800);
-        } else showToast(result.error || 'Failed', 'error');
-      }
-    });
-  };
-
-  const handleRevert = (bookingId: string) => {
-    if (!confirm('Revert this booking back to pending? This will remove the client as the confirmed owner.')) return;
-
-    startTransition(async () => {
-      if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === bookingId);
-        const result = await submitChangeRequest({
-          entity_type: 'booking',
-          entity_id: bookingId,
-          operation: 'update',
-          payload: { status: 'pending' },
-          description: `Revert booking to pending for "${booking?.client?.name}" on plot ${plot.plot_number}`,
-        });
-        if (result.success) showToast('Revert request sent for approval', 'warning');
-        else showToast(result.error || 'Failed', 'error');
-      } else {
-        const result = await revertBooking(bookingId, plot.id);
-        if (result.success) {
-          showToast('Booking reverted to pending', 'success');
-          setTimeout(reload, 800);
-        } else showToast(result.error || 'Failed', 'error');
-      }
-    });
-  };
-
-  const handleEditPlot = (e: React.FormEvent) => {
-    e.preventDefault();
-    startTransition(async () => {
-      const result = await updatePlot(plot.id, {
-        plot_number: editPlotForm.plot_number,
-        area_sqyd: parseFloat(editPlotForm.area_sqyd) || 0,
-        price: parseFloat(editPlotForm.price) || 0,
-        status: editPlotForm.status,
-      });
-      if (result.success) {
-        showToast('Plot updated', 'success');
-        setShowEditPlotModal(false);
-        setTimeout(reload, 800);
-      } else showToast(result.error || 'Failed', 'error');
-    });
-  };
-
-  const handleEditBooking = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeBookingId) return;
-    startTransition(async () => {
-      const result = await updateBooking(activeBookingId, {
-        total_amount: parseFloat(editBookingForm.total_amount) || 0,
-        discount_amount: parseFloat(editBookingForm.discount_amount) || 0,
-        commission_percent: parseFloat(editBookingForm.commission_percent) || 0,
-        status: editBookingForm.status,
-      });
-      if (result.success) {
-        showToast('Booking updated', 'success');
-        setShowEditBookingModal(false);
-        setTimeout(reload, 800);
-      } else showToast(result.error || 'Failed', 'error');
-    });
-  };
-
-  const handleEditPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activePaymentId) return;
-    startTransition(async () => {
-      const result = await updatePayment(activePaymentId, {
-        amount: parseFloat(editPaymentForm.amount) || 0,
-        payment_date: editPaymentForm.payment_date,
-        payment_mode: editPaymentForm.payment_mode,
-        description: editPaymentForm.description,
-        transaction_id: editPaymentForm.transaction_id || '',
-        payment_type: editPaymentForm.payment_type
-      });
-      if (result.success) {
-        showToast('Payment updated', 'success');
-        setShowEditPaymentModal(false);
-        setTimeout(reload, 800);
-      } else showToast(result.error || 'Failed', 'error');
-    });
-  };
-
-  const handleDeletePayment = (paymentId: string) => {
-    if (!confirm('Delete this payment record? This cannot be undone.')) return;
-    startTransition(async () => {
-      const result = await deletePayment(paymentId);
-      if (result.success) {
-        showToast('Payment deleted', 'success');
-        setTimeout(reload, 800);
-      } else showToast(result.error || 'Failed', 'error');
-    });
-  };
-
-  const handleAddPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeBookingId) { alert('Missing booking info'); return; }
-
-    startTransition(async () => {
-      const payload = {
-        booking_id: activeBookingId,
-        amount: parseFloat(paymentForm.amount),
-        payment_date: paymentForm.date,
-        payment_mode: paymentForm.mode,
-        description: paymentForm.description,
-        transaction_id: paymentForm.transaction_id || '',
-        entity_id: paymentForm.entity_id || activeClientId || '',
-        payment_type: paymentForm.payment_type
-      };
-
-      if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === activeBookingId);
-        const result = await submitChangeRequest({
-          entity_type: 'payment',
-          operation: 'create',
-          payload,
-          description: `New payment of ₹${formatNumber(payload.amount)} for plot ${plot.plot_number} (${booking?.client?.name})`,
-        });
-        if (result.success) {
-          showToast('Payment request submitted for review', 'warning');
-          setShowPaymentModal(false);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
-      } else {
-        const result = await addPayment(payload);
-        if (result.success) {
-          showToast('Payment recorded successfully', 'success');
-          setShowPaymentModal(false);
-          setTimeout(reload, 800);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
-      }
-    });
-  };
-
-  const handleUpdateDiscount = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeBookingId) return;
-
-    startTransition(async () => {
-      const newDiscount = parseFloat(discountValue) || 0;
-      if (isEmployee) {
-        const booking = bookings.find((b: any) => b.id === activeBookingId);
-        const result = await submitChangeRequest({
-          entity_type: 'booking',
-          entity_id: activeBookingId,
-          operation: 'update',
-          payload: { discount_amount: newDiscount },
-          description: `Update discount to ₹${formatNumber(newDiscount)} for plot ${plot.plot_number} (${booking?.client?.name})`,
-        });
-        if (result.success) {
-          showToast('Discount change request submitted', 'warning');
-          setShowDiscountModal(false);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
-      } else {
-        const result = await updateBookingDiscount(activeBookingId, newDiscount);
-        if (result.success) {
-          showToast('Discount updated', 'success');
-          setShowDiscountModal(false);
-          setTimeout(reload, 800);
-        } else {
-          showToast(result.error || 'Failed', 'error');
-        }
-      }
-    });
-  };
-
-  const handleCloseModal = () => {
-    setShowAddClientModal(false);
-    setShowPaymentModal(false);
-    setShowDiscountModal(false);
-    setShowTransferModal(false);
-    setShowAddPartnerModal(false);
-    setShowFeesModal(false);
-    setShowEditPaymentModal(false);
-  };
-
-  const handlePrintAllotmentLetter = async (booking: any) => {
-    try {
-      const payload = {
-        name: booking.client?.name,
-        client_name: booking.client?.name,
-        partner_name: (booking.booking_partners || []).length > 0 ? booking.booking_partners.map((bp: any) => bp.client?.name).filter(Boolean).join(' & ') : null,
-        project_name: plot.project?.name,
-        plot_number: plot.plot_number,
-        area_sqyd: plot.area_sqyd
-      };
-      const result = await generateAllotmentLetter(payload, true);
-      if (result) {
-        setPdfDoc(result.doc);
-        setPdfFileName(result.fileName);
-        setShowPdfModal(true);
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Failed to generate Allotment Letter');
-    }
-  };
-
-  // ---- DERIVED ----
+  // --- DERIVED DATA ---
   const bookings: any[] = [...(plot.bookings || [])].sort((a: any, b: any) => {
     if (a.status === 'confirmed') return -1;
     if (b.status === 'confirmed') return 1;
     return 0;
   });
   const confirmedBooking = bookings.find((b: any) => b.status === 'confirmed');
-  const pendingBookings = bookings.filter((b: any) => b.status === 'pending');
+
   const filteredClients = clients.filter((c: any) =>
     c.name?.toLowerCase().includes(clientSearch.toLowerCase()) ||
     c.client_code?.toLowerCase().includes(clientSearch.toLowerCase())
   );
 
-  const statusBadge = (status: string) => {
-    if (status === 'confirmed') return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
-    if (status === 'cancelled') return 'bg-gray-100 text-gray-500';
-    return 'bg-amber-100 text-amber-700 border border-amber-200';
-  };
-
   const plotStatusBadge = () => {
     if (plot.status === 'sold') return 'bg-rose-100 text-rose-700';
+    if (plot.status === 'allotted') return 'bg-blue-100 text-blue-700';
     if (plot.status === 'token_paid') return 'bg-amber-100 text-amber-700';
     return 'bg-emerald-100 text-emerald-700';
   };
 
-  const handleEditPaymentClick = (payment: any) => {
-    setEditPaymentForm({
-      id: payment.id,
-      amount: payment.amount.toString(),
-      payment_date: payment.payment_date,
-      payment_mode: payment.payment_mode,
-      transaction_id: payment.transaction_id || '',
-      description: payment.description || '',
-      payment_type: payment.payment_type || 'Plot payment'
-    });
-    setActivePaymentId(payment.id);
-    setShowEditPaymentModal(true);
+  const statusBadge = (status: string) => {
+    if (status === 'confirmed') return 'bg-emerald-100 text-emerald-700 border border-emerald-200';
+    if (status === 'cancelled') return 'bg-gray-100 text-gray-500 border border-gray-200';
+    return 'bg-amber-100 text-amber-700 border border-amber-200';
   };
 
   return (
@@ -599,15 +260,6 @@ export default function PlotDetailsClient({
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>
               {plot.status?.replace('_', ' ')}
             </span>
-            {/* Edit button */}
-            {/* {isMasterAdmin && (
-              <button
-                onClick={() => setShowEditPlotModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-100 text-violet-700 rounded-lg text-xs font-bold hover:bg-violet-200 transition-colors"
-              >
-                <Edit2 className="w-3.5 h-3.5" /> Edit Plot
-              </button>
-            )} */}
           </div>
           <p className="text-gray-500 mt-1 font-medium">{plot.project?.name}</p>
         </div>
@@ -651,7 +303,7 @@ export default function PlotDetailsClient({
             )}
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-6 space-y-4">
             {bookings.length === 0 ? (
               <div className="text-center py-16 bg-gray-50 rounded-xl border border-dashed border-gray-300">
                 <User className="w-10 h-10 text-gray-300 mx-auto mb-3" />
@@ -661,32 +313,24 @@ export default function PlotDetailsClient({
             ) : (
               bookings.map((booking: any) => {
                 const finalDeal = booking.total_amount - (booking.discount_amount || 0);
-                const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0', govFees: '0' };
-                const stampDutyAmount = parseFee(fees.stampDuty, finalDeal);
-                const legalFeesAmount = parseFee(fees.legal, finalDeal);
-                const maintenanceAmount = parseFee(fees.maintenance, finalDeal);
-                const registrationFeesAmount = parseFee(fees.registration, finalDeal);
-                const govFeesAmount = parseFee(fees.govFees, finalDeal); // TEMPORARY_GOV_FEES_V200
-                const grandTotal = finalDeal; // Fees are strictly excluded from plot value
-
-                // Plot paid amount (UI fallback calculated from payments if trigger is delayed)
                 const paid = (booking.payments || [])
                   .filter((p: any) => p.payment_type === 'Plot payment' || !p.payment_type)
                   .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-                const due = grandTotal - paid;
+                const due = finalDeal - paid;
+                const paymentPct = finalDeal > 0 ? Math.round((paid / finalDeal) * 100) : 0;
                 const isConfirmed = booking.status === 'confirmed';
-                const paymentPct = grandTotal > 0 ? Math.round((paid / grandTotal) * 100) : 0;
 
                 return (
-                  <div key={booking.id} className={`border rounded-2xl p-6 ${isConfirmed ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-200 bg-white'} shadow-sm`}>
-                    {/* Booking Header */}
-                    <div className="flex flex-wrap justify-between items-start gap-4 mb-5">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl ${isConfirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-600'}`}>
+                  <div key={booking.id} className={`flex flex-col gap-4 border rounded-2xl p-5 md:p-6 transition-colors hover:shadow-sm ${isConfirmed ? 'border-emerald-200 bg-emerald-50/20' : 'border-gray-200 bg-white'}`}>
+                    
+                    {/* Top Row: Client Info & Status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl shrink-0 ${isConfirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-600'}`}>
                           {isConfirmed ? <Trophy className="w-6 h-6" /> : (booking.client?.name?.charAt(0) || 'C')}
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-gray-900">
+                          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                             {booking.client?.name || 'Unknown Client'}
                             {(booking.booking_partners || []).length > 0 && (
                               <span className="text-gray-400 font-normal text-base">
@@ -695,304 +339,81 @@ export default function PlotDetailsClient({
                               </span>
                             )}
                           </h3>
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>{booking.client?.phone || 'No Phone'}</span>
-                            {(booking.booking_partners || []).length > 0 && (
-                              <span className="px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-xs font-bold">Partnership</span>
-                            )}
-                            {booking.consultant?.name && (
-                              <>
-                                <span className="text-gray-300">•</span>
-                                <span className="text-violet-600 font-medium">Via {booking.consultant.name}</span>
-                              </>
-                            )}
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge(booking.status)}`}>
+                              {booking.status}
+                            </span>
+                            <span className="text-sm text-gray-500">• {new Date(booking.booking_date).toLocaleDateString('en-IN')}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${statusBadge(booking.status)}`}>
-                          Booking Status: {booking.status}
-                        </span>
-                        {(isAdmin || isEmployee) && booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => { setPartnerBookingId(booking.id); setPartnerSearch(''); setSelectedPartnerId(''); setShowAddPartnerModal(true); }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" /> Add Partner
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && (booking.booking_partners || []).map((bp: any) => (
-                          <button
-                            key={bp.client_id}
-                            onClick={() => handleRemovePartner(booking.id, bp.client_id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-500 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Remove {bp.client?.name || 'Partner'}
-                          </button>
-                        ))}
-                        {isAdmin && isConfirmed && (
-                           <button
-                             onClick={() => handlePrintAllotmentLetter(booking)}
-                             className="inline-flex items-center gap-1.5 px-3 py-1 bg-white text-gray-700 border border-gray-300 rounded-lg text-xs font-bold hover:bg-gray-50 transition-colors"
-                           >
-                             <Printer className="w-3.5 h-3.5" /> Print Allotment Letter
-                           </button>
-                        )}
-                        {isMasterAdmin && (
-                          <button
-                            onClick={() => {
-                              setActiveBookingId(booking.id);
-                              setEditBookingForm({
-                                total_amount: String(booking.total_amount || ''),
-                                discount_amount: String(booking.discount_amount || ''),
-                                commission_percent: String(booking.commission_percent || ''),
-                                status: booking.status,
-                              });
-                              setShowEditBookingModal(true);
-                            }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" /> Edit Booking
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && isConfirmed && (
-                          <button
-                            onClick={() => handleRevert(booking.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors"
-                          >
-                            <Clock className="w-3.5 h-3.5" /> {isEmployee ? 'Request Revert' : 'Revert to Pending'}
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
-                          <button
-                            onClick={() => handleConfirm(booking.id, booking.client_id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 transition-colors"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Confirmation' : 'Confirm Owner'}
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && booking.status === 'pending' && bookings.length > 1 && (
-                          <button
-                            onClick={() => { setMergeSourceBookingId(booking.id); setMergeSamePlotTargetId(''); setShowMergeSamePlotModal(true); }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-600 border border-amber-200 rounded-lg text-xs font-bold hover:bg-amber-100 transition-colors"
-                          >
-                            <GitMerge className="w-3.5 h-3.5" /> Merge
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && booking.status === 'pending' && (
-                          <button
-                            onClick={() => openTransferModal(booking.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" /> {isEmployee ? 'Request Transfer' : 'Transfer Plot'}
-                          </button>
-                        )}
-                        {(isAdmin || isEmployee) && booking.status === 'pending' && (
-                          <button
-                            onClick={() => handleCancel(booking.id)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> {isEmployee ? 'Request Removal' : 'Remove'}
-                          </button>
-                        )}
+                      <Link
+                        href={`/projects/${projectId}/plot/${plot.id}/booking/${booking.id}`}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg text-sm font-semibold hover:bg-gray-50 hover:text-violet-700 hover:border-violet-200 transition-colors"
+                      >
+                        View Full Details <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+
+                    {/* Middle Row: Financials & Progress */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Deal Value</p>
+                        <p className="font-bold text-gray-900">₹{formatNumber(finalDeal)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Paid</p>
+                        <p className="font-bold text-emerald-600">₹{formatNumber(paid)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Balance</p>
+                        <p className="font-bold text-orange-600">₹{formatNumber(due)}</p>
+                      </div>
+                      <div className="col-span-1 sm:col-span-3">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1.5 font-semibold">
+                          <span>Payment Progress</span>
+                          <span>{paymentPct}%</span>
+                        </div>
+                        <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min(paymentPct, 100)}%` }} />
+                        </div>
                       </div>
                     </div>
 
-                    {/* Financials + Payments */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Financial breakdown */}
-                      {/* Financial breakdown */}
-                      <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2.5 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Agreed Value</span>
-                          <span className="font-bold text-gray-900">₹{formatNumber(booking.total_amount)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-red-600">
-                          <span>Discount</span>
-                          <span className="font-bold">– ₹{formatNumber(booking.discount_amount || 0)}</span>
-                        </div>
-                        <div className="flex justify-between text-base font-bold border-t border-gray-200 pt-2 text-violet-700">
-                          <span>Plot Deal Value</span>
-                          <span>₹{formatNumber(grandTotal)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-emerald-600 pt-1">
-                          <span>Paid (Plot only)</span>
-                          <span className="font-bold">₹{formatNumber(paid)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm text-orange-600 font-bold">
-                          <span>Balance Due</span>
-                          <span>₹{formatNumber(due)}</span>
-                        </div>
-                        <div className="pt-1">
-                          <div className="flex justify-between text-xs text-gray-400 mb-1">
-                            <span>Payment Progress</span><span>{paymentPct}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                            <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${Math.min(paymentPct, 100)}%` }} />
-                          </div>
-                        </div>
-                        {booking.status !== 'cancelled' && (
-                          <button
-                            onClick={() => {
-                              setActiveFeeBookingId(booking.id);
-                              const existing = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0', govFees: '0' };
-                              const parseState = (val: string | number | undefined) => {
-                                if (!val || val === '0') return { value: '', type: '%' };
-                                const str = String(val).trim();
-                                if (str.endsWith('%')) return { value: str.replace('%', ''), type: '%' };
-                                return { value: str, type: '₹' };
-                              };
-                              setFeeForm({
-                                stampDuty: parseState(existing.stampDuty),
-                                legal: parseState(existing.govFees), // TEMPORARY_GOV_FEES_V200: Using govFees for the single 'Legal fees' input
-                                maintenance: parseState(existing.maintenance),
-                                registration: parseState(existing.registration)
-                              });
-                              setShowFeesModal(true);
-                            }}
-                            className="inline-flex items-center gap-1 text-xs text-violet-600 hover:underline font-semibold pt-2"
-                          >
-                            <Plus className="w-3 h-3" /> Calculate Fees
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Government & Additional Fees Section */}
-                      {/* TEMPORARY_GOV_FEES_V200: Hidden the old fees section
-                      {(stampDutyAmount > 0 || legalFeesAmount > 0 || maintenanceAmount > 0 || registrationFeesAmount > 0) && (
-                        <div className="bg-amber-50/50 rounded-xl p-4 border border-amber-100 space-y-3 mb-4">
-                          <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-2">Government & Additional Fees</h4>
-                          
-                          {[
-                            { label: 'Stamp Duty', amount: stampDutyAmount, type: 'Stamp duty fees' },
-                            { label: 'Legal Fees', amount: legalFeesAmount, type: 'Legal fees' },
-                            { label: 'Maintenance', amount: maintenanceAmount, type: 'Maintenance fees' },
-                            { label: 'Registration', amount: registrationFeesAmount, type: 'Registration fees' }
-                          ].map(fee => {
-                            if (fee.amount <= 0) return null;
-                            const feePaid = (booking.payments || []).filter((p: any) => p.payment_type === fee.type).reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-                            const isFullyPaid = feePaid >= fee.amount;
-                            return (
-                              <div key={fee.label} className="flex justify-between items-center text-sm">
-                                <div className="flex items-center gap-2 text-gray-700">
-                                  {isFullyPaid ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <Clock className="w-4 h-4 text-amber-500" />}
-                                  <span>{fee.label}: <span className="font-bold text-gray-900">₹{formatNumber(fee.amount)}</span></span>
-                                </div>
-                                <span className={`text-xs font-semibold ${isFullyPaid ? 'text-emerald-600' : 'text-gray-500'}`}>
-                                  (Paid: ₹{formatNumber(feePaid)})
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
+                    {/* Bottom Row: Quick Actions */}
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      {(isAdmin || isEmployee) && !isConfirmed && booking.status === 'pending' && !confirmedBooking && (
+                        <button
+                          onClick={() => handleConfirm(booking.id, booking.client_id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-bold hover:bg-emerald-100 transition-colors"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Confirm
+                        </button>
                       )}
-                      */}
-
-                      {/* TEMPORARY_GOV_FEES_V200: New Legal Fees section */}
-                      {govFeesAmount > 0 && (() => {
-                        const feePaid = (booking.payments || []).filter((p: any) => p.payment_type === 'Gov fees').reduce((sum: number, p: any) => sum + Number(p.amount), 0);
-                        const isFullyPaid = feePaid >= govFeesAmount;
-                        const feePaymentPct = Math.round((feePaid / govFeesAmount) * 100);
-                        return (
-                          <div className="bg-violet-50/50 rounded-xl p-4 border border-violet-100 space-y-3 mb-4">
-                            <div className="flex justify-between items-center mb-2">
-                              <h4 className="text-xs font-bold text-violet-800 uppercase tracking-wider">Legal Fees</h4>
-                              {booking.status !== 'cancelled' && (isAdmin || isEmployee) && !isFullyPaid && (
-                                <button
-                                  onClick={() => {
-                                    setActiveBookingId(booking.id);
-                                    setActiveClientId(booking.client_id);
-                                    setPaymentForm(prev => ({ ...prev, payment_type: 'Gov fees' }));
-                                    setShowPaymentModal(true);
-                                  }}
-                                  className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
-                                >
-                                  <HandCoins className="w-3 h-3" /> Add Fee
-                                </button>
-                              )}
-                            </div>
-                            <div className="flex justify-between text-sm">
-                              <span className="text-gray-600">Total Legal Fees</span>
-                              <span className="font-bold text-gray-900">₹{formatNumber(govFeesAmount)}</span>
-                            </div>
-                            <div className="pt-1">
-                              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                <span>Paid: ₹{formatNumber(feePaid)}</span><span>{feePaymentPct}%</span>
-                              </div>
-                              <div className="w-full bg-violet-200 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-violet-500 h-full rounded-full transition-all" style={{ width: `${Math.min(feePaymentPct, 100)}%` }} />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-
-                      {/* Payment history */}
-                      <div>
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Payment History</h4>
-                          {booking.status !== 'cancelled' && (isAdmin || isEmployee) && (
-                            <button
-                              onClick={() => { setActiveBookingId(booking.id); setActiveClientId(booking.client_id); setPaymentForm(prev => ({ ...prev, payment_type: 'Plot payment' })); setShowPaymentModal(true); }}
-                              className="inline-flex items-center gap-1 text-xs font-bold text-violet-600 hover:underline"
-                            >
-                              <HandCoins className="w-3 h-3" /> {isEmployee ? 'Request Payment' : 'Add Payment'}
-                            </button>
-                          )}
-                        </div>
-                        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                          <table className="w-full text-xs">
-                            <thead className="bg-gray-50 border-b">
-                                <tr>
-                                  <th className="px-3 py-2 text-left text-gray-600 font-semibold">Details</th>
-                                  <th className="px-3 py-2 text-right text-gray-600 font-semibold">Amount</th>
-                                  {isMasterAdmin && <th className="px-3 py-2"></th>}
-                                </tr>
-                            </thead>
-                            <tbody>
-                              {(booking.payments || []).map((p: any) => (
-                                <tr key={p.id} className="border-b last:border-0">
-                                  <td className="px-3 py-2">
-                                    <p className="font-semibold text-gray-900">
-                                      {new Date(p.payment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                    </p>
-                                    <p className="text-gray-500">{p.payment_mode} • {p.payment_type || 'Plot payment'}</p>
-                                    {booking.booking_partners?.length > 0 && p.entity_id && (
-                                      <p className="text-xs text-violet-600 font-medium mt-0.5">
-                                        Paid by: {clients.find((c: any) => c.id === p.entity_id)?.name || 'Unknown'}
-                                      </p>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-bold text-gray-900">₹{formatNumber(p.amount)}</td>
-                                  {isMasterAdmin && (
-                                    <td className="px-3 py-2">
-                                      <div className="flex items-center gap-1 justify-end">
-                                        <button
-                                          onClick={() => handleEditPaymentClick(p)}
-                                          className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
-                                          title="Edit payment"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDeletePayment(p.id)}
-                                          className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
-                                          title="Delete payment"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
-                                    </td>
-                                  )}
-                                </tr>
-                              ))}
-                              {(booking.payments || []).length === 0 && (
-                                <tr><td colSpan={isMasterAdmin ? 3 : 2} className="p-3 text-center text-gray-400">No payments yet</td></tr>
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                      {(isAdmin || isEmployee) && booking.status !== 'cancelled' && (
+                        <button
+                          onClick={() => { setActiveBookingId(booking.id); setShowPaymentModal(true); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-violet-50 text-violet-700 border border-violet-200 rounded-lg text-xs font-bold hover:bg-violet-100 transition-colors"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> Add Payment
+                        </button>
+                      )}
+                      {(isAdmin || isEmployee) && booking.status === 'pending' && (
+                        <button
+                          onClick={() => openTransferModal(booking.id, booking.client_id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors"
+                        >
+                          <GitMerge className="w-3.5 h-3.5" /> Transfer
+                        </button>
+                      )}
+                      {(isAdmin || isEmployee) && booking.status === 'pending' && (
+                        <button
+                          onClick={() => handleCancel(booking.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-bold hover:bg-red-100 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Remove
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -1002,733 +423,189 @@ export default function PlotDetailsClient({
         </div>
       </div>
 
-      {/* ===== ADD CLIENT MODAL ===== */}
+      {/* --- MODALS --- */}
+
+      {/* Add Client Modal */}
       {showAddClientModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-2xl max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request New Booking' : 'Add Negotiating Client'}</h2>
-              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+              <h3 className="text-lg font-bold text-gray-900">Start Negotiation</h3>
+              <button onClick={() => setShowAddClientModal(false)} className="text-gray-400 hover:text-gray-600"><XCircle className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleAddClient} className="flex flex-col gap-4 overflow-y-auto">
-              {/* Client Search */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Search Client</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search by name or code..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={clientSearch}
-                    onChange={e => setClientSearch(e.target.value)}
-                  />
-                </div>
-                <div className="mt-2 border border-gray-200 rounded-lg max-h-40 overflow-y-auto">
-                  {filteredClients.slice(0, 20).map((c: any) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setSelectedClientId(c.id)}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-violet-50 transition-colors ${selectedClientId === c.id ? 'bg-violet-100 text-violet-700 font-semibold' : 'text-gray-700'}`}
-                    >
-                      <span>{c.name}</span>
-                      <span className="text-xs text-gray-400">{c.client_code}</span>
-                    </button>
-                  ))}
-                  {filteredClients.length === 0 && <p className="p-3 text-sm text-gray-400 text-center">No clients found</p>}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Agreed Amount</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
-                  value={addClientForm.total_amount}
-                  onChange={e => setAddClientForm({ ...addClientForm, total_amount: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount (optional)</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
-                  placeholder="0"
-                  value={addClientForm.discount_amount}
-                  onChange={e => setAddClientForm({ ...addClientForm, discount_amount: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Consultant (optional)</label>
-                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm bg-white"
-                  value={addClientForm.consultant_id}
-                  onChange={e => setAddClientForm({ ...addClientForm, consultant_id: e.target.value })}
-                >
-                  <option value="">No Consultant</option>
-                  {consultants.map((c: any) => (
-                    <option key={c.id} value={c.id}>{c.name} ({c.consultant_code || 'No Code'})</option>
-                  ))}
-                </select>
-              </div>
-              {addClientForm.consultant_id && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Commission Rate (%)</label>
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 text-sm"
-                    value={addClientForm.commission_percent}
-                    onChange={e => setAddClientForm({ ...addClientForm, commission_percent: e.target.value })}
-                    placeholder="e.g. 10"
-                  />
-                </div>
-              )}
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={!selectedClientId || isPending}
-                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Add to Negotiations')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== ADD PAYMENT MODAL ===== */}
-      {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Payment' : 'Add Payment'}</h2>
-              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
+            <div className="p-4 border-b border-gray-100 shrink-0">
+              <input 
+                type="text" 
+                placeholder="Search clients..." 
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-violet-500"
+              />
             </div>
-            <form onSubmit={handleAddPayment} className="space-y-4">
-              {/* TEMPORARY_GOV_FEES_V200: Replaced dropdown with static text */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
-                <div className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-gray-50">
-                  {paymentForm.payment_type === 'Gov fees' ? 'Legal Fees' : paymentForm.payment_type}
-                </div>
-              </div>
-              {/* TEMPORARY_GOV_FEES_V200: Hidden old dropdown
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
-                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
-                  value={paymentForm.payment_type} onChange={e => {
-                    const type = e.target.value;
-                    let amountStr = paymentForm.amount;
-                    if (type !== 'Plot payment') {
-                      const activeBooking = bookings.find((b: any) => b.id === activeBookingId);
-                      if (activeBooking) {
-                        const finalDeal = activeBooking.total_amount - (activeBooking.discount_amount || 0);
-                        const fees = (activeBookingId ? bookingFees[activeBookingId] : null) || { stampDuty: '0', legal: '0', maintenance: '0', registration: '0' };
-                        let amt = 0;
-                        if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
-                        if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);
-                        if (type === 'Maintenance fees') amt = parseFee(fees.maintenance, finalDeal);
-                        if (type === 'Registration fees') amt = parseFee(fees.registration, finalDeal);
-                        amountStr = amt > 0 ? amt.toString() : '';
-                      }
-                    }
-                    setPaymentForm({ ...paymentForm, payment_type: type, amount: amountStr });
-                  }}>
-                  <option value="Plot payment">Plot payment</option>
-                  <option value="Stamp duty fees">Stamp duty fees</option>
-                  <option value="Legal fees">Legal fees</option>
-                  <option value="Maintenance fees">Maintenance fees</option>
-                  <option value="Registration fees">Registration fees</option>
-                </select>
-              </div>
-              */}
-
-              {(() => {
-                const activeBkg = bookings.find((b: any) => b.id === activeBookingId);
-                const partners = activeBkg?.booking_partners?.map((bp: any) => bp.client).filter(Boolean) || [];
-                const primaryClient = activeBkg?.client;
-                
-                if (partners.length > 0) {
-                  return (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Paying Entity</label>
-                      <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
-                        value={paymentForm.entity_id || primaryClient?.id || ''} 
-                        onChange={e => setPaymentForm({ ...paymentForm, entity_id: e.target.value })}>
-                        {primaryClient && <option value={primaryClient.id}>{primaryClient.name} (Primary)</option>}
-                        {partners.map((p: any) => (
-                          <option key={p.id} value={p.id}>{p.name} (Partner)</option>
-                        ))}
-                      </select>
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {filteredClients.length === 0 ? (
+                <p className="text-center text-sm text-gray-400 py-4">No clients found</p>
+              ) : (
+                filteredClients.map((client: any) => (
+                  <label key={client.id} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${selectedClientId === client.id ? 'border-violet-500 bg-violet-50 ring-1 ring-violet-500' : 'border-gray-200 hover:border-violet-300'}`}>
+                    <div className="flex items-center gap-3">
+                      <input type="radio" name="client" value={client.id} checked={selectedClientId === client.id} onChange={(e) => setSelectedClientId(e.target.value)} className="w-4 h-4 text-violet-600" />
+                      <div>
+                        <p className="font-bold text-gray-900">{client.name}</p>
+                        <p className="text-xs text-gray-500">{client.phone} • {client.client_code}</p>
+                      </div>
                     </div>
-                  );
-                }
-                return null;
-              })()}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-500"
-                  disabled={isPending || (paymentForm.payment_type !== 'Plot payment' && paymentForm.payment_type !== 'Gov fees')}
-                  placeholder={(paymentForm.payment_type !== 'Plot payment' && paymentForm.payment_type !== 'Gov fees') && !paymentForm.amount ? 'Calculate fee first' : ''}
-                  value={paymentForm.amount} onChange={e => setPaymentForm({ ...paymentForm, amount: e.target.value })} required />
+                  </label>
+                ))
+              )}
+            </div>
+            <form onSubmit={handleAddClient} className="p-6 bg-gray-50 border-t border-gray-100 shrink-0 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Total Agreed Value (₹)</label>
+                  <input type="number" required value={addClientForm.total_amount} onChange={e => setAddClientForm({...addClientForm, total_amount: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">Discount Amount (₹)</label>
+                  <input type="number" value={addClientForm.discount_amount} onChange={e => setAddClientForm({...addClientForm, discount_amount: e.target.value})} className="w-full p-2 border border-gray-300 rounded-lg text-sm" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                <input type="date" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
-                  value={paymentForm.date} onChange={e => setPaymentForm({ ...paymentForm, date: e.target.value })} required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
-                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
-                  value={paymentForm.mode} onChange={e => setPaymentForm({ ...paymentForm, mode: e.target.value })}>
-                  <option>Cash</option>
-                  <option>Bank Transfer</option>
-                  <option>Cheque</option>
-                  <option>UPI</option>
-                  <option>NEFT/IMPS/RTGS</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ref ID / Transaction ID {paymentForm.mode === 'Cash' && <span className="text-gray-400 font-normal">(Optional)</span>}
-                </label>
-                <input className="w-full p-2 border border-gray-300 rounded-lg text-gray-900"
-                  value={paymentForm.transaction_id} onChange={e => setPaymentForm({ ...paymentForm, transaction_id: e.target.value })} />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Save Payment')}
-                </button>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowAddClientModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                <button type="submit" disabled={isPending || !selectedClientId} className="px-6 py-2 text-sm font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50">Create Booking</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ===== DISCOUNT MODAL ===== */}
-      {showDiscountModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Discount Change' : 'Update Discount'}</h2>
-              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-900">Add Payment</h3>
+              <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
-            <form onSubmit={handleUpdateDiscount} className="space-y-4">
+            <form onSubmit={handleAddPayment} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Discount Amount (₹)</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50"
-                  disabled={isPending}
-                  placeholder="0" value={discountValue}
-                  onChange={e => setDiscountValue(e.target.value)} />
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending} className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Submitting...' : (isEmployee ? 'Submit Request' : 'Apply')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== CALCULATE FEES MODAL ===== */}
-      {showFeesModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Calculate Fees</h2>
-              <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (activeFeeBookingId) {
-                const formatFee = (f: { value: string, type: string }) => {
-                  if (!f.value) return '0';
-                  return f.type === '%' ? `${f.value}%` : f.value;
-                };
-                const newFees = {
-                  stampDuty: formatFee(feeForm.stampDuty),
-                  legal: formatFee(feeForm.legal),
-                  maintenance: formatFee(feeForm.maintenance),
-                  registration: formatFee(feeForm.registration),
-                  govFees: formatFee(feeForm.legal), // TEMPORARY_GOV_FEES_V200: store 'legal' form input into govFees
-                };
-                
-                setBookingFees(prev => ({
-                  ...prev,
-                  [activeFeeBookingId]: newFees
-                }));
-                setShowFeesModal(false);
-                
-                startTransition(async () => {
-                  const res = await updateBookingFees(activeFeeBookingId, newFees);
-                  if (res.success) {
-                    showToast('Fees updated successfully', 'success');
-                  } else {
-                    showToast(res.error || 'Failed to update fees', 'error');
-                  }
-                });
-              }
-            }} className="space-y-4">
-              {/* TEMPORARY_GOV_FEES_V200: Hid Stamp Duty
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty</label>
-                <div className="flex">
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                    placeholder="0" value={feeForm.stampDuty.value}
-                    onChange={e => setFeeForm({ ...feeForm, stampDuty: { ...feeForm.stampDuty, value: e.target.value } })} />
-                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
-                    value={feeForm.stampDuty.type}
-                    onChange={e => setFeeForm({ ...feeForm, stampDuty: { ...feeForm.stampDuty, type: e.target.value } })}>
-                    <option value="%">%</option>
-                    <option value="₹">₹</option>
-                  </select>
-                </div>
-              </div>
-              */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Legal Fees</label>
-                <div className="flex">
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                    placeholder="0" value={feeForm.legal.value}
-                    onChange={e => setFeeForm({ ...feeForm, legal: { ...feeForm.legal, value: e.target.value } })} />
-                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
-                    value={feeForm.legal.type}
-                    onChange={e => setFeeForm({ ...feeForm, legal: { ...feeForm.legal, type: e.target.value } })}>
-                    <option value="%">%</option>
-                    <option value="₹">₹</option>
-                  </select>
-                </div>
-              </div>
-              {/* TEMPORARY_GOV_FEES_V200: Hid Maintenance and Registration
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Maintenance</label>
-                <div className="flex">
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                    placeholder="0" value={feeForm.maintenance.value}
-                    onChange={e => setFeeForm({ ...feeForm, maintenance: { ...feeForm.maintenance, value: e.target.value } })} />
-                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
-                    value={feeForm.maintenance.type}
-                    onChange={e => setFeeForm({ ...feeForm, maintenance: { ...feeForm.maintenance, type: e.target.value } })}>
-                    <option value="%">%</option>
-                    <option value="₹">₹</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Registration Fees</label>
-                <div className="flex">
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 border-r-0 rounded-l-lg text-gray-900 focus:ring-2 focus:ring-violet-500"
-                    placeholder="0" value={feeForm.registration.value}
-                    onChange={e => setFeeForm({ ...feeForm, registration: { ...feeForm.registration, value: e.target.value } })} />
-                  <select className="p-2 border border-gray-300 rounded-r-lg bg-gray-50 text-gray-700 font-medium"
-                    value={feeForm.registration.type}
-                    onChange={e => setFeeForm({ ...feeForm, registration: { ...feeForm.registration, type: e.target.value } })}>
-                    <option value="%">%</option>
-                    <option value="₹">₹</option>
-                  </select>
-                </div>
-              </div>
-              */}
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={handleCloseModal}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold hover:bg-violet-700">
-                  Calculate
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== EDIT PLOT MODAL (master_admin) ===== */}
-      {showEditPlotModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Edit Plot Details</h2>
-              <button onClick={() => setShowEditPlotModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={handleEditPlot} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Plot Number</label>
-                  <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPlotForm.plot_number}
-                    onChange={e => setEditPlotForm({ ...editPlotForm, plot_number: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Area (sq.yd)</label>
-                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPlotForm.area_sqyd}
-                    onChange={e => setEditPlotForm({ ...editPlotForm, area_sqyd: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">List Price (₹)</label>
-                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPlotForm.price}
-                    onChange={e => setEditPlotForm({ ...editPlotForm, price: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
-                    value={editPlotForm.status}
-                    onChange={e => setEditPlotForm({ ...editPlotForm, status: e.target.value })}>
-                    <option value="available">Available</option>
-                    <option value="token_paid">Token Paid</option>
-                    <option value="sold">Sold</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowEditPlotModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending}
-                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== EDIT BOOKING MODAL (master_admin) ===== */}
-      {showEditBookingModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Edit Booking</h2>
-              <button onClick={() => setShowEditBookingModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={handleEditBooking} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount (₹)</label>
-                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editBookingForm.total_amount}
-                    onChange={e => setEditBookingForm({ ...editBookingForm, total_amount: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
-                  <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editBookingForm.discount_amount}
-                    onChange={e => setEditBookingForm({ ...editBookingForm, discount_amount: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Commission %</label>
-                  <input type="number" step="0.01" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editBookingForm.commission_percent}
-                    onChange={e => setEditBookingForm({ ...editBookingForm, commission_percent: e.target.value })} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
-                    value={editBookingForm.status}
-                    onChange={e => setEditBookingForm({ ...editBookingForm, status: e.target.value })}>
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowEditBookingModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending}
-                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ===== EDIT PAYMENT MODAL (master_admin) ===== */}
-      {showEditPaymentModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Edit Payment</h2>
-              <button onClick={() => setShowEditPaymentModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={handleEditPayment} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (₹)</label>
-                <input type="number" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-500"
-                  disabled={isPending || editPaymentForm.payment_type !== 'Plot payment'}
-                  placeholder={editPaymentForm.payment_type !== 'Plot payment' && !editPaymentForm.amount ? 'Calculate fee first' : ''}
-                  value={editPaymentForm.amount}
-                  onChange={e => setEditPaymentForm({ ...editPaymentForm, amount: e.target.value })} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
-                <select className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white"
-                  value={editPaymentForm.payment_type} onChange={e => {
-                    const type = e.target.value;
-                    let amountStr = editPaymentForm.amount;
-                    if (type !== 'Plot payment') {
-                      const booking = bookings.find((b: any) => (b.payments || []).some((p: any) => p.id === activePaymentId));
-                      if (booking) {
-                        const finalDeal = booking.total_amount - (booking.discount_amount || 0);
-                        const fees = bookingFees[booking.id] || { stampDuty: '0', legal: '0', maintenance: '0' };
-                        let amt = 0;
-                        if (type === 'Stamp duty fees') amt = parseFee(fees.stampDuty, finalDeal);
-                        if (type === 'Legal fees') amt = parseFee(fees.legal, finalDeal);
-                        if (type === 'Maintenance fees') amt = parseFee(fees.maintenance, finalDeal);
-                        amountStr = amt > 0 ? amt.toString() : '';
-                      }
-                    }
-                    setEditPaymentForm({ ...editPaymentForm, payment_type: type, amount: amountStr });
-                  }}>
-                  <option value="Plot payment">Plot payment</option>
-                  <option value="Stamp duty fees">Stamp duty fees</option>
-                  <option value="Legal fees">Legal fees</option>
-                  <option value="Maintenance fees">Maintenance fees</option>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Type</label>
+                <select value={paymentForm.payment_type} onChange={e => setPaymentForm({...paymentForm, payment_type: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                  <option value="Plot payment">Plot Payment</option>
+                  <option value="Legal fees">Legal & Gov Fees</option>
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-                  <input type="date" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                    value={editPaymentForm.payment_date}
-                    onChange={e => setEditPaymentForm({ ...editPaymentForm, payment_date: e.target.value })} />
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (₹) *</label>
+                  <input type="number" required value={paymentForm.amount} onChange={e => setPaymentForm({...paymentForm, amount: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Mode</label>
-                  <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
-                    value={editPaymentForm.payment_mode}
-                    onChange={e => setEditPaymentForm({ ...editPaymentForm, payment_mode: e.target.value })}>
-                    <option>Cash</option>
-                    <option>Bank Transfer</option>
-                    <option>Cheque</option>
-                    <option>UPI</option>
-                    <option>NEFT/IMPS/RTGS</option>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Date *</label>
+                  <input type="date" required value={paymentForm.date} onChange={e => setPaymentForm({...paymentForm, date: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Mode</label>
+                  <select value={paymentForm.mode} onChange={e => setPaymentForm({...paymentForm, mode: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    <option value="Cash">Cash</option><option value="Bank Transfer">Bank Transfer</option><option value="Cheque">Cheque</option><option value="UPI">UPI</option>
                   </select>
                 </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Ref / UTR</label>
+                  <input type="text" value={paymentForm.transaction_id} onChange={e => setPaymentForm({...paymentForm, transaction_id: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" />
+                </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Ref ID / Transaction ID {editPaymentForm.payment_mode === 'Cash' && <span className="text-gray-400 font-normal">(Optional)</span>}
-                </label>
-                <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                  value={editPaymentForm.transaction_id}
-                  onChange={e => setEditPaymentForm({ ...editPaymentForm, transaction_id: e.target.value })} />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Who is paying?</label>
+                <select value={paymentForm.entity_id} onChange={e => setPaymentForm({...paymentForm, entity_id: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                  {activeBookingId && bookings.find(b => b.id === activeBookingId) && (
+                    <>
+                      <option value={bookings.find(b => b.id === activeBookingId).client_id}>{bookings.find(b => b.id === activeBookingId).client?.name} (Primary)</option>
+                      {(bookings.find(b => b.id === activeBookingId).booking_partners || []).map((bp: any) => (
+                        <option key={bp.client_id} value={bp.client_id}>{bp.client?.name} (Partner)</option>
+                      ))}
+                    </>
+                  )}
+                </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <input className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                  value={editPaymentForm.description}
-                  onChange={e => setEditPaymentForm({ ...editPaymentForm, description: e.target.value })} />
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
+                <input type="text" value={paymentForm.description} onChange={e => setPaymentForm({...paymentForm, description: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm" />
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowEditPaymentModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending}
-                  className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                  {isPending ? 'Saving...' : 'Save Changes'}
-                </button>
+              <div className="pt-2 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowPaymentModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                <button type="submit" disabled={isPending} className="px-6 py-2 text-sm font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-50">Save Payment</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* ===== ADD PARTNER MODAL ===== */}
-      {showAddPartnerModal && (() => {
-        const filteredPartnerClients = clients.filter((c: any) =>
-          c.id !== bookings.find((b: any) => b.id === partnerBookingId)?.client_id &&
-          (c.name?.toLowerCase().includes(partnerSearch.toLowerCase()) ||
-           c.client_code?.toLowerCase().includes(partnerSearch.toLowerCase()))
-        );
-        return (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Add Partnership Client</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">This client will share this booking with the primary client</p>
-                </div>
-                <button onClick={handleCloseModal}><X className="w-5 h-5 text-gray-400" /></button>
-              </div>
-              <form onSubmit={handleAddPartner} className="flex flex-col gap-4 overflow-y-auto">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Search Client</label>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search by name or code..."
-                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900"
-                      value={partnerSearch}
-                      onChange={e => setPartnerSearch(e.target.value)}
-                    />
-                  </div>
-                  <div className="mt-2 border border-gray-200 rounded-lg max-h-52 overflow-y-auto">
-                    {filteredPartnerClients.slice(0, 20).map((c: any) => (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setSelectedPartnerId(c.id)}
-                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-violet-50 transition-colors ${selectedPartnerId === c.id ? 'bg-violet-100 text-violet-700 font-semibold' : 'text-gray-700'}`}
-                      >
-                        <span>{c.name}</span>
-                        <span className="text-xs text-gray-400">{c.client_code}</span>
-                      </button>
-                    ))}
-                    {filteredPartnerClients.length === 0 && <p className="p-3 text-sm text-gray-400 text-center">No clients found</p>}
-                  </div>
-                </div>
-                <div className="flex gap-3 pt-2 border-t border-gray-100">
-                  <button type="button" onClick={handleCloseModal}
-                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                  <button type="submit" disabled={!selectedPartnerId || isPending}
-                    className="flex-1 px-4 py-2 bg-violet-600 text-white rounded-lg font-semibold text-sm hover:bg-violet-700 disabled:opacity-50">
-                    {isPending ? 'Adding...' : 'Add as Partner'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* PDF PREVIEW MODAL */}
-      <PDFPreviewModal
-        isOpen={showPdfModal}
-        onClose={() => {
-          setShowPdfModal(false);
-          setPdfDoc(null);
-        }}
-        pdfDoc={pdfDoc}
-        fileName={pdfFileName}
-        title="Welcome Letter Preview"
-      />
-
-      {/* ===== TRANSFER PLOT MODAL ===== */}
+      {/* Transfer Modal */}
       {showTransferModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">{isEmployee ? 'Request Plot Transfer' : 'Transfer Client to Another Plot'}</h2>
-              <button onClick={() => setShowTransferModal(false)}><X className="w-5 h-5 text-gray-400" /></button>
-            </div>
-            <form onSubmit={handleTransfer} className="space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Available Plot</label>
-                <select
-                  className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
-                  value={selectedNewPlotId}
-                  onChange={async (e) => {
-                    const newVal = e.target.value;
-                    setSelectedNewPlotId(newVal);
-                    const selected = availablePlots.find((p: any) => p.uniqueKey === newVal);
-                    const actualPlotId = selected?.id;
-                    if (selected?.isPartnership && transferBookingId && actualPlotId) {
-                      const booking = bookings.find((b: any) => b.id === transferBookingId);
-                      // Fetch the target booking id on that partnership plot for this client
-                      const { createClient } = await import('@/utils/supabase/client');
-                      const supabase = createClient();
-                      
-                      const clientId = booking?.client_id || '';
-                      
-                      // 1. Check if client is primary on target plot
-                      let { data: targetBooking } = await supabase
-                        .from('bookings')
-                        .select('id')
-                        .eq('plot_id', actualPlotId)
-                        .eq('client_id', clientId)
-                        .neq('id', transferBookingId)
-                        .in('status', ['pending', 'confirmed'])
-                        .single();
-                        
-                      if (!targetBooking) {
-                        // 2. Check if client is partner on target plot
-                        const { data: bPartners } = await supabase
-                          .from('booking_partners')
-                          .select('booking_id, bookings!inner(plot_id, status)')
-                          .eq('client_id', clientId)
-                          .eq('bookings.plot_id', actualPlotId)
-                          .neq('booking_id', transferBookingId)
-                          .in('bookings.status', ['pending', 'confirmed']);
-                          
-                        if (bPartners && bPartners.length > 0) {
-                           targetBooking = { id: bPartners[0].booking_id };
-                        }
-                      }
-                      
-                      setMergeTargetBookingId(targetBooking?.id || null);
-                    } else {
-                      setMergeTargetBookingId(null);
-                    }
-                  }}
-                  required
-                >
-                  <option value="" disabled>Select a plot...</option>
-                  {availablePlots.map((p: any) => (
-                    <option key={p.uniqueKey} value={p.uniqueKey}>
-                      Plot {p.plot_number} ({p.area_sqyd} sq.yd) - ₹{formatNumber(p.price)}{p.isPartnership ? ' [Partnership — Merge]' : (p.status !== 'available' ? ' [Own Booking]' : '')}
-                    </option>
-                  ))}
-                </select>
-                {availablePlots.length === 0 && (
-                  <p className="text-xs text-red-500 mt-1">No available plots found in this project.</p>
+                <h3 className="text-lg font-bold text-gray-900">Transfer Plot</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Move this booking to another plot</p>
+              </div>
+              <button onClick={() => setShowTransferModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            
+            <form onSubmit={handleTransfer} className="p-6 flex flex-col min-h-0">
+              <div className="mb-4 shrink-0">
+                <p className="text-sm text-gray-600">Select a destination plot. Plots highlighted in purple indicate this client already has an active negotiation there.</p>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto min-h-[200px] border border-gray-200 rounded-xl divide-y divide-gray-100">
+                {availablePlots.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 text-sm">No eligible plots available for transfer.</div>
+                ) : (
+                  availablePlots.map((p) => {
+                    const isMerge = p.uniqueKey.endsWith('_primary') || p.uniqueKey.endsWith('_partner');
+                    return (
+                      <label key={p.uniqueKey} className={`flex flex-col p-4 cursor-pointer hover:bg-gray-50 transition-colors ${selectedNewPlotId === p.uniqueKey ? (isMerge ? 'bg-violet-50 ring-1 ring-violet-500' : 'bg-blue-50 ring-1 ring-blue-500') : ''}`}>
+                        <div className="flex items-center gap-3">
+                          <input 
+                            type="radio" 
+                            name="transfer_plot" 
+                            value={p.uniqueKey} 
+                            checked={selectedNewPlotId === p.uniqueKey}
+                            onChange={() => {
+                              setSelectedNewPlotId(p.uniqueKey);
+                              if (isMerge && p.uniqueKey.endsWith('_partner')) {
+                                setIsMergeTransfer(true);
+                              } else {
+                                setIsMergeTransfer(false);
+                                setMergeTargetBookingId(null);
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600" 
+                          />
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900">Plot {p.plot_number}</span>
+                              {isMerge && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-violet-100 text-violet-700">Merge Booking</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-0.5 flex gap-3">
+                              <span>{p.area_sqyd} sq.yd</span>
+                              <span>₹{formatNumber(p.price)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })
                 )}
               </div>
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowTransferModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending || !selectedNewPlotId}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold text-sm hover:bg-blue-700 disabled:opacity-50">
-                  {isPending ? 'Processing...' : (isEmployee ? 'Submit Request' : 'Confirm Transfer')}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
-      {/* Same-Plot Merge Modal */}
-      {showMergeSamePlotModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                <GitMerge className="w-5 h-5 text-amber-500" />
-                Merge Booking
-              </h2>
-              <button onClick={() => setShowMergeSamePlotModal(false)} className="p-2 text-gray-400 hover:bg-gray-100 rounded-full transition-colors">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleMergeSamePlot} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Select Target Booking</label>
-                <select
-                  className="w-full p-2 border border-gray-300 rounded-lg text-gray-900 bg-white text-sm"
-                  value={mergeSamePlotTargetId}
-                  onChange={(e) => setMergeSamePlotTargetId(e.target.value)}
-                  required
-                >
-                  <option value="" disabled>Select a booking...</option>
-                  {bookings.filter((b: any) => b.id !== mergeSourceBookingId).map((b: any) => (
-                    <option key={b.id} value={b.id}>
-                      Booking: {b.client?.name} {b.booking_partners?.length > 0 ? `(& ${b.booking_partners.length} partner${b.booking_partners.length > 1 ? 's' : ''})` : ''}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-2">
-                  All payments from this booking will be moved to the target booking, and this client (along with any partners) will be added as a partner to the target booking.
-                </p>
-              </div>
-              <div className="flex gap-3 pt-4 border-t border-gray-100">
-                <button type="button" onClick={() => setShowMergeSamePlotModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-semibold text-sm">Cancel</button>
-                <button type="submit" disabled={isPending || !mergeSamePlotTargetId}
-                  className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg font-semibold text-sm hover:bg-amber-700 disabled:opacity-50">
-                  {isPending ? 'Processing...' : 'Confirm Merge'}
+              <div className="pt-6 shrink-0 flex justify-end gap-3 mt-auto">
+                <button type="button" onClick={() => setShowTransferModal(false)} className="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
+                <button type="submit" disabled={isPending || !selectedNewPlotId} className="px-6 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  {isMergeTransfer ? 'Merge Bookings' : 'Confirm Transfer'}
                 </button>
               </div>
             </form>

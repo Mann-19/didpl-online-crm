@@ -51,6 +51,35 @@ export async function getPlotDetails(plotId: string, projectId?: string) {
   return plot
 }
 
+export async function getBookingById(bookingId: string) {
+  const supabase = await createClient()
+
+  const { data: booking, error } = await supabase
+    .from('bookings')
+    .select(`
+      *,
+      plot:plot_id ( id, plot_number, area_sqyd, price, status, project:project_id ( id, name, location ) ),
+      client:client_id ( id, name, phone, email, client_code ),
+      booking_partners (
+        client_id,
+        added_at,
+        client:client_id ( id, name, phone, email, client_code )
+      ),
+      consultant:consultant_id ( id, name ),
+      payments ( * ),
+      booking_fees ( * )
+    `)
+    .eq('id', bookingId)
+    .single()
+
+  if (error) {
+    console.error('Error fetching booking details:', error)
+    return null
+  }
+
+  return booking
+}
+
 
 export async function addPayment(formData: {
   booking_id: string;
