@@ -105,14 +105,21 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   const addrParts = [addressText];
   if (line2) addrParts.push(line2);
 
-  const fullAddress = `Address : ${addrParts.join('\n')}`;
-  doc.setFont("helvetica", "normal");
+  const fullAddress = addrParts.join(', ').replace(/\n/g, ', ');
+  
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 4);
+  const labelWidth = doc.getTextWidth("Address: ");
+  
+  doc.setFont("helvetica", "normal");
+  const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 6 - labelWidth);
   const addressHeight = Math.max(12, addressLines.length * 6 + 6);
 
   doc.rect(margin, y, contentWidth, addressHeight);
-  doc.text(addressLines, margin + 2, y + 6);
+  doc.setFont("helvetica", "bold");
+  doc.text("Address:", margin + 2, y + 6);
+  doc.setFont("helvetica", "normal");
+  doc.text(addressLines, margin + 2 + labelWidth + 2, y + 6);
   y += addressHeight;
 
   // Payment Details Header Row
@@ -128,11 +135,20 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   const wordsStr = toIndianWords(pureAmount);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  const wordsLines = doc.splitTextToSize(wordsStr, contentWidth / 2 - 40);
+
+  const leftColWidth = contentWidth * 0.35;
+  const rightColWidth = contentWidth * 0.65;
+  const splitLineX = margin + leftColWidth;
+
+  doc.setFont("helvetica", "normal");
+  const wordsPrefixWidth = doc.getTextWidth("Rupees in words: ");
+  doc.setFont("helvetica", "bold");
+
+  const wordsLines = doc.splitTextToSize(wordsStr, rightColWidth - wordsPrefixWidth - 6);
   const row1Height = Math.max(12, wordsLines.length * 6 + 4);
 
   doc.rect(margin, y, contentWidth, row1Height);
-  doc.line(pageWidth / 2, y, pageWidth / 2, y + row1Height);
+  doc.line(splitLineX, y, splitLineX, y + row1Height);
 
   doc.setFont("helvetica", "normal");
   doc.text("Amount ", margin + 2, y + 7);
@@ -141,10 +157,9 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   doc.text(`Rs.${formatNumber(pureAmount)}`, margin + 2 + amountWidth, y + 7);
 
   doc.setFont("helvetica", "normal");
-  doc.text("Rupees in words: ", pageWidth / 2 + 2, y + 7);
-  const wordsPrefixWidth = doc.getTextWidth("Rupees in words: ");
+  doc.text("Rupees in words: ", splitLineX + 2, y + 7);
   doc.setFont("helvetica", "bold");
-  doc.text(wordsLines, pageWidth / 2 + 2 + wordsPrefixWidth, y + 7);
+  doc.text(wordsLines, splitLineX + 2 + wordsPrefixWidth, y + 7);
   y += row1Height;
 
   // Payment Details Table - Row 2
@@ -166,12 +181,6 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   doc.setFont("helvetica", "bold");
   const paymentDateStr = data.date || data.payment_date ? new Date(data.date || data.payment_date).toLocaleDateString('en-GB') : new Date().toLocaleDateString('en-GB');
   doc.text(paymentDateStr, col2X + 2 + dateLabelWidth, y + 5);
-
-  doc.setFont("helvetica", "normal");
-  doc.text("Bank Name: ", col3X + 2, y + 5);
-  const bankLabelWidth = doc.getTextWidth("Bank Name: ");
-  doc.setFont("helvetica", "bold");
-  doc.text("SBI", col3X + 2 + bankLabelWidth, y + 5);
   y += row2Height;
 
   // Payment Details Table - Row 3

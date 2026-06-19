@@ -15,11 +15,11 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
   const tooltipRef = useRef<HTMLDivElement>(null);
   const detailsBarRef = useRef<HTMLDivElement>(null);
 
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(0.7);
 
   const handleZoomIn = () => setScale(prev => Math.min(prev + 0.1, 2.0));
   const handleZoomOut = () => setScale(prev => Math.max(prev - 0.1, 0.3));
-  const handleResetZoom = () => setScale(1);
+  const handleResetZoom = () => setScale(0.7);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -68,13 +68,11 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         area: p.area_sqyd ? `${p.area_sqyd} sq.yd` : "N/A",
         status: p.status === "sold" ? "Sold" :
             p.status === "fully_paid" ? "Fully Paid" :
-            p.status === "allotted" ? "Allotted" :
             p.status === "token_paid" ? "Token Paid" : "Available",
         price: `₹${parseInt(String(p.price)).toLocaleString("en-IN")}`,
         colorClass:
           p.status === "sold" ? "status-sold" :
             p.status === "fully_paid" ? "status-fully-paid" :
-            p.status === "allotted" ? "status-allotted" :
             p.status === "token_paid" ? "status-token" : "status-available",
         bookings: mappedBookings
       };
@@ -94,7 +92,7 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
       const isDH3 = project?.name === 'Dholera Homes 3';
       const isDisabledDH3 = isDH3 && !DH3_ACTIVE_PLOTS.has(parseInt(String(num), 10));
 
-      const isAerotownResidency = project?.name?.toLowerCase().includes('aerotown residency');
+      const isAerotownResidency = project?.name?.toLowerCase().includes('aerotown residency') && !project?.name?.toLowerCase().includes('aerotown residency ii') && !project?.name?.toLowerCase().includes('aerotown residency 2');
       const isDisabledAerotown = isAerotownResidency && !AEROTOWN_RESIDENCY_ACTIVE_PLOTS.has(parseInt(String(num), 10));
 
       const isDisabled = isDisabledDH3 || isDisabledAerotown;
@@ -280,7 +278,6 @@ export default function LayoutGridClient({ project, plots }: { project: any, plo
         .project-layout-container .status-available { background-color: #ffffff; border-color: #10b981; color: #10b981; }
         .project-layout-container .status-available:hover { background-color: #ecfdf5; color: #047857; }
         .project-layout-container .status-token { background-color: #fefce8; border-color: #eab308; color: #a16207; }
-        .project-layout-container .status-allotted { background-color: #eff6ff; border-color: #3b82f6; color: #1d4ed8; }
         .project-layout-container .status-fully-paid { background-color: #faf5ff; border-color: #a855f7; color: #7e22ce; }
         .project-layout-container .status-fully-paid:hover { background-color: #f3e8ff; color: #6b21a8; }
         .project-layout-container .status-partial { background-color: #fff7ed; border-color: #f97316; color: #c2410c; }

@@ -233,7 +233,6 @@ export default function PlotDetailsClient({
 
   const plotStatusBadge = () => {
     if (plot.status === 'sold') return 'bg-rose-100 text-rose-700';
-    if (plot.status === 'allotted') return 'bg-blue-100 text-blue-700';
     if (plot.status === 'token_paid') return 'bg-amber-100 text-amber-700';
     return 'bg-emerald-100 text-emerald-700';
   };

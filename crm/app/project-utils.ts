@@ -26,7 +26,7 @@ export function filterActivePlots(projectName: string, plots: any[]): any[] {
     );
   }
 
-  if (pName.includes('aerotown residency')) {
+  if (pName.includes('aerotown residency') && !pName.includes('aerotown residency ii') && !pName.includes('aerotown residency 2')) {
     return (plots || []).filter((p: any) => 
       p && p.plot_number && AEROTOWN_RESIDENCY_ACTIVE_PLOTS.has(parseInt(String(p.plot_number), 10))
     );

@@ -1,4 +1,5 @@
 import { renderAerotownLayout } from "./AerotownLayout";
+import { renderAeroTown2Layout } from "./AeroTown2Layout";
 
 import { renderDholeraHomes3Layout } from "./DholeraHomes3Layout";
 import { renderCommercialWarehouseLayout } from "./CommercialWarehouseLayout";
@@ -17,7 +18,13 @@ const PROJECT_RENDERERS: Record<string, Function> = {
     'dholera-homes-3': renderDholeraHomes3Layout,
     'dholera homes': renderDholeraHomes3Layout,   // catch "Dholera Homes 3" via substring
 
-    // AeroTown — catches "AeroTown Residency", "Aerotown", etc.
+    // AeroTown Residency II — must come BEFORE generic 'aerotown residency'
+    'aerotown residency ii': renderAeroTown2Layout,
+    'aerotown residency 2': renderAeroTown2Layout,
+    'aero town residency ii': renderAeroTown2Layout,
+    'atc-002': renderAeroTown2Layout,
+
+    // AeroTown Residency (original) — catches "AeroTown Residency", "Aerotown", etc.
     'aerotown residency': renderAerotownLayout,
     'aero town residency': renderAerotownLayout,
     'aerotown': renderAerotownLayout,

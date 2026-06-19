@@ -19,6 +19,8 @@ import {
 import { submitChangeRequest } from '@/app/(admin)/change-requests.actions';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
+import { generateReceipt } from '@/utils/pdf/generateReceipt';
+import { generateMergedReceipt } from '@/utils/pdf/generateMergedReceipt';
 import { Toast, useToast } from '@/components/ui/Toast';
 import DocumentSection from '@/components/documents/DocumentSection';
 
@@ -33,6 +35,7 @@ export default function BookingDetailsClient({
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
 
   // Transfer Modal
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -253,6 +256,65 @@ export default function BookingDetailsClient({
     } catch (e) {
       console.error(e);
       alert('Failed to generate Allotment Letter');
+    }
+  };
+
+  const handleDownloadReceipt = async (payment: any) => {
+    try {
+      const payload = {
+        client_name: booking.client?.name,
+        gender: booking.client?.gender,
+        residential_address: booking.client?.residential_address,
+        client_city: booking.client?.residential_city,
+        client_state: booking.client?.residential_state,
+        client_pincode: booking.client?.residential_pincode,
+        amount: payment.amount,
+        transaction_id: payment.transaction_id,
+        payment_date: payment.payment_date,
+        payment_mode: payment.payment_mode,
+        payment_type: payment.payment_type || 'Plot payment',
+        id: payment.id
+      };
+      const result = await generateReceipt(payload, true);
+      if (result) {
+        setPdfDoc(result.doc);
+        setPdfFileName(result.fileName);
+        setShowPdfModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate receipt');
+    }
+  };
+
+  const handleDownloadMergedReceipt = async () => {
+    try {
+      const paymentsToMerge = (booking.payments || []).filter((p: any) => selectedPayments.includes(p.id));
+      let plotSum = 0;
+      let legalSum = 0;
+      paymentsToMerge.forEach((p: any) => {
+        if (p.payment_type === 'Legal fees') legalSum += Number(p.amount);
+        else plotSum += Number(p.amount);
+      });
+      const payload = {
+        client_name: booking.client?.name,
+        gender: booking.client?.gender,
+        residential_address: booking.client?.residential_address,
+        client_city: booking.client?.residential_city,
+        client_state: booking.client?.residential_state,
+        client_pincode: booking.client?.residential_pincode,
+        plot_payment_total: plotSum,
+        legal_fees_total: legalSum,
+      };
+      const result = await generateMergedReceipt(payload, true);
+      if (result) {
+        setPdfDoc(result.doc);
+        setPdfFileName(result.fileName);
+        setShowPdfModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate merged receipt');
     }
   };
 
@@ -659,19 +721,42 @@ export default function BookingDetailsClient({
                 <HandCoins className="w-5 h-5 text-gray-400" /> Payment History
               </h2>
             </div>
-            {(isAdmin || isEmployee) && (
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowPaymentModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+                onClick={handleDownloadMergedReceipt}
+                disabled={selectedPayments.length === 0}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Plus className="w-4 h-4" /> Add Payment
+                <Printer className="w-4 h-4" /> Download Merged Receipt
               </button>
-            )}
+              {(isAdmin || isEmployee) && (
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> Add Payment
+                </button>
+              )}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-200 uppercase text-xs tracking-wider">
                 <tr>
+                  <th className="px-6 py-4 w-12">
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                      checked={selectedPayments.length > 0 && selectedPayments.length === (booking.payments || []).length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedPayments((booking.payments || []).map((p: any) => p.id));
+                        } else {
+                          setSelectedPayments([]);
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-6 py-4">Date</th>
                   <th className="px-6 py-4">Amount</th>
                   <th className="px-6 py-4">Type</th>
@@ -683,13 +768,27 @@ export default function BookingDetailsClient({
               <tbody className="divide-y divide-gray-100">
                 {(booking.payments || []).length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                       No payments recorded yet.
                     </td>
                   </tr>
                 ) : (
                   (booking.payments || []).sort((a: any, b: any) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime()).map((payment: any) => (
-                    <tr key={payment.id} className="hover:bg-gray-50 transition-colors group">
+                    <tr key={payment.id} className={`hover:bg-gray-50 transition-colors group ${selectedPayments.includes(payment.id) ? 'bg-violet-50/30' : ''}`}>
+                      <td className="px-6 py-4">
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                          checked={selectedPayments.includes(payment.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPayments([...selectedPayments, payment.id]);
+                            } else {
+                              setSelectedPayments(selectedPayments.filter(id => id !== payment.id));
+                            }
+                          }}
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600 font-medium">
                         {new Date(payment.payment_date).toLocaleDateString('en-IN')}
                       </td>
@@ -709,6 +808,13 @@ export default function BookingDetailsClient({
                         <div className="text-gray-400">{payment.description}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleDownloadReceipt(payment)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          title="Download Receipt"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
                         {(isAdmin || isEmployee) && (
                           <button
                             onClick={() => {

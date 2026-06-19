@@ -165,8 +165,12 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
   };
 
   const bookings: any[] = client.bookings || [];
-  const totalPaid = bookings.reduce((sum: number, b: any) =>
-    sum + (Number(b.amount_paid) || 0), 0);
+  const totalPaid = bookings.reduce((sum: number, b: any) => {
+    const paidForBooking = b.payments?.length 
+      ? b.payments.reduce((pSum: number, p: any) => pSum + (Number(p.amount) || 0), 0)
+      : (Number(b.amount_paid) || 0);
+    return sum + paidForBooking;
+  }, 0);
   const totalDeal = bookings.reduce((sum: number, b: any) =>
     sum + (Number(b.total_amount) - Number(b.discount_amount || 0)), 0);
 
@@ -306,7 +310,9 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                 <tbody className="divide-y divide-gray-50">
                   {bookings.map((b: any) => {
                     const deal = Number(b.total_amount) - Number(b.discount_amount || 0);
-                    const paid = Number(b.amount_paid) || 0;
+                    const paid = b.payments?.length 
+                      ? b.payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0)
+                      : (Number(b.amount_paid) || 0);
                     const balance = deal - paid;
                     const projectId = b.plots?.projects?.id;
                     const plotId = b.plots?.plot_number;

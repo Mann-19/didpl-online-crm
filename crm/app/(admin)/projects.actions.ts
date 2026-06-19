@@ -11,7 +11,6 @@ function calculateProjectStats(project: any, plots: any[]) {
   let confirmedPlots = 0
   let soldPlots = 0
   let tokenPlots = 0
-  let allottedPlots = 0
   let fullyPaidPlots = 0
   let unavailablePlots = 0
   let cancelledPlots = 0
@@ -70,14 +69,12 @@ function calculateProjectStats(project: any, plots: any[]) {
     if (isFullyPaid && isConfirmed) derivedPlotStatus = 'sold'
     else if (isFullyPaid && !isConfirmed) derivedPlotStatus = 'fully_paid'
     else if (hasActiveBooking) {
-      if (isConfirmed) derivedPlotStatus = 'allotted'
-      else derivedPlotStatus = 'token_paid'
+      derivedPlotStatus = 'token_paid'
     }
 
     if (isConfirmed && derivedPlotStatus !== 'sold') confirmedPlots++
     if (derivedPlotStatus === 'sold') soldPlots++
     if (derivedPlotStatus === 'fully_paid') fullyPaidPlots++
-    if (derivedPlotStatus === 'allotted') allottedPlots++
     if (derivedPlotStatus === 'token_paid') tokenPlots++
 
     // Gather unique clients from active bookings
@@ -115,7 +112,6 @@ function calculateProjectStats(project: any, plots: any[]) {
     confirmedPlots,
     soldPlots,
     fullyPaidPlots,
-    allottedPlots,
     tokenPlots,
     availablePlots,
     cancelledPlots,
@@ -315,14 +311,12 @@ export async function getProjectClients(projectId: string, status?: string) {
       let derivedPlotStatus = 'available'
       if (isFullyPaid && isConfirmed) derivedPlotStatus = 'sold'
       else if (isFullyPaid && !isConfirmed) derivedPlotStatus = 'fully_paid'
-      else if (!isFullyPaid && isConfirmed) derivedPlotStatus = 'allotted'
-      else if (!isFullyPaid && !isConfirmed) derivedPlotStatus = 'token_paid'
+      else if (!isFullyPaid) derivedPlotStatus = 'token_paid'
 
       let match = true
       if (status === 'confirmed') match = (isConfirmed && derivedPlotStatus !== 'sold')
       if (status === 'sold') match = (derivedPlotStatus === 'sold')
       if (status === 'fully_paid') match = (derivedPlotStatus === 'fully_paid')
-      if (status === 'allotted') match = (derivedPlotStatus === 'allotted')
       if (status === 'token_paid') match = (derivedPlotStatus === 'token_paid')
       if (status === 'cancelled') match = (b.status === 'cancelled')
 

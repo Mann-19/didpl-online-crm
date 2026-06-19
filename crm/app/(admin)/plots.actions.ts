@@ -59,7 +59,7 @@ export async function getBookingById(bookingId: string) {
     .select(`
       *,
       plot:plot_id ( id, plot_number, area_sqyd, price, status, project:project_id ( id, name, location ) ),
-      client:client_id ( id, name, phone, email, client_code ),
+      client:client_id ( id, name, phone, email, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
       booking_partners (
         client_id,
         added_at,
