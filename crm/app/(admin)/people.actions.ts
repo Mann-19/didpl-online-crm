@@ -64,8 +64,15 @@ async function generateUniqueEntityCode(
 
 export async function addClient(formData: any) {
   const supabase = await createClient()
+
+  // Clean empty strings to null
+  const cleanedData = { ...formData }
+  for (const key in cleanedData) {
+    if (cleanedData[key] === '') cleanedData[key] = null
+  }
+
   const client_code = await generateUniqueEntityCode(supabase, 'CLI', formData.name, 'clients', 'client_code')
-  const { error } = await supabase.from('clients').insert([{ ...formData, client_code }])
+  const { error } = await supabase.from('clients').insert([{ ...cleanedData, client_code }])
   if (error) return { success: false, error: error.message }
   revalidatePath('/clients/list')
   return { success: true }
@@ -122,7 +129,14 @@ export async function getClientById(clientId: string) {
 
 export async function updateClient(clientId: string, formData: any): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
-  const { error } = await supabase.from('clients').update(formData).eq('id', clientId)
+  
+  // Clean empty strings to null
+  const cleanedData = { ...formData }
+  for (const key in cleanedData) {
+    if (cleanedData[key] === '') cleanedData[key] = null
+  }
+
+  const { error } = await supabase.from('clients').update(cleanedData).eq('id', clientId)
   if (error) return { success: false, error: error.message }
   revalidatePath(`/clients/${clientId}`)
   revalidatePath('/clients/list')

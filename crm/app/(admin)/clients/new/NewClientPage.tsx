@@ -70,8 +70,12 @@ export default function NewClientPage({ role }: { role: string }) {
       } else {
         // Admin: write directly
         try {
-          await addClient(formData);
-          router.push('/clients/list');
+          const result = await addClient(formData);
+          if (result.success) {
+            router.push('/clients/list');
+          } else {
+            setErrors({ submit: result.error || 'Failed to save client' });
+          }
         } catch (error: any) {
           setErrors({ submit: error.message || 'Failed to save client' });
         }
