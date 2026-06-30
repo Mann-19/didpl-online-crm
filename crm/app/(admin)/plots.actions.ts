@@ -275,14 +275,46 @@ export async function transferBooking(
     return { success: false, error: newPlotError?.message || 'New plot not found' }
   }
 
-  // 3. Update booking to point to new plot, reset total_amount to new plot's list price
-  const { error: updateBookingError } = await supabase
+  // 3. Check if the client already has a booking for the new plot (e.g., cancelled or pending)
+  const { data: existingBooking } = await supabase
     .from('bookings')
-    .update({ plot_id: newPlotId, total_amount: newPlot.price })
-    .eq('id', bookingId)
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('plot_id', newPlotId)
+    .single()
 
-  if (updateBookingError) {
-    return { success: false, error: updateBookingError.message }
+  if (existingBooking) {
+    // Transfer payments to the existing booking
+    const { error: paymentError } = await supabase
+      .from('payments')
+      .update({ booking_id: existingBooking.id })
+      .eq('booking_id', bookingId)
+      
+    if (paymentError) return { success: false, error: paymentError.message }
+
+    // Transfer booking_partners to the existing booking
+    await supabase
+      .from('booking_partners')
+      .update({ booking_id: existingBooking.id })
+      .eq('booking_id', bookingId)
+
+    // Delete the old booking
+    const { error: deleteError } = await supabase
+      .from('bookings')
+      .delete()
+      .eq('id', bookingId)
+
+    if (deleteError) return { success: false, error: deleteError.message }
+  } else {
+    // 4. Update booking to point to new plot, reset total_amount to new plot's list price
+    const { error: updateBookingError } = await supabase
+      .from('bookings')
+      .update({ plot_id: newPlotId, total_amount: newPlot.price })
+      .eq('id', bookingId)
+
+    if (updateBookingError) {
+      return { success: false, error: updateBookingError.message }
+    }
   }
 
 
