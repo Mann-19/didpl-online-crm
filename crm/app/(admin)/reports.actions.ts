@@ -12,7 +12,7 @@ export async function getLedger() {
     .from('payments')
     .select(`
       id, amount, payment_date, payment_mode, transaction_type, payment_type,
-      description, entity_type,
+      description, entity_type, entity_id,
       booking:booking_id (
         client:client_id ( id, name, phone ),
         plot:plot_id ( plot_number, project:project_id ( name ) )
@@ -22,19 +22,49 @@ export async function getLedger() {
 
   if (error) { console.error('getLedger error:', error); return [] }
 
-  return (data || []).map((p: any) => ({
-    id: p.id,
-    amount: Number(p.amount),
-    payment_date: p.payment_date,
-    payment_mode: p.payment_mode,
-    transaction_type: p.transaction_type,
-    payment_type: p.payment_type || 'Plot payment',
-    description: p.description,
-    entity_type: p.entity_type,
-    client_name: p.booking?.client?.name || null,
-    plot_number: p.booking?.plot?.plot_number || null,
-    project_name: p.booking?.plot?.project?.name || null,
-  }))
+  const payments = data || []
+  
+  // Find unlinked payments that belong to clients
+  const unlinkedClientEntityIds = [...new Set(payments
+    .filter((p: any) => p.entity_type === 'client' && !p.booking && p.entity_id)
+    .map((p: any) => p.entity_id)
+  )]
+
+  let clientMap: Record<string, string> = {}
+  
+  if (unlinkedClientEntityIds.length > 0) {
+    const { data: clientsData, error: clientsError } = await supabase
+      .from('clients')
+      .select('id, name')
+      .in('id', unlinkedClientEntityIds)
+      
+    if (!clientsError && clientsData) {
+      clientsData.forEach((c: any) => {
+        clientMap[c.id] = c.name
+      })
+    }
+  }
+
+  return payments.map((p: any) => {
+    let client_name = p.booking?.client?.name || null
+    if (!client_name && p.entity_type === 'client' && p.entity_id && clientMap[p.entity_id]) {
+      client_name = clientMap[p.entity_id]
+    }
+    
+    return {
+      id: p.id,
+      amount: Number(p.amount),
+      payment_date: p.payment_date,
+      payment_mode: p.payment_mode,
+      transaction_type: p.transaction_type,
+      payment_type: p.payment_type || 'Plot payment',
+      description: p.description,
+      entity_type: p.entity_type,
+      client_name,
+      plot_number: p.booking?.plot?.plot_number || null,
+      project_name: p.booking?.plot?.project?.name || null,
+    }
+  })
 }
 
 // ─────────────────────────────────────────────
