@@ -247,7 +247,7 @@ export async function cancelBooking(
 export async function transferBooking(
   bookingId: string,
   newPlotId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; bookingId?: string }> {
   const supabase = await createClient()
 
   // 1. Get current booking details
@@ -305,6 +305,7 @@ export async function transferBooking(
       .eq('id', bookingId)
 
     if (deleteError) return { success: false, error: deleteError.message }
+    return { success: true, bookingId: existingBooking.id }
   } else {
     // 4. Update booking to point to new plot, reset total_amount to new plot's list price
     const { error: updateBookingError } = await supabase
@@ -318,9 +319,8 @@ export async function transferBooking(
   }
 
 
-
   revalidatePath('/projects')
-  return { success: true }
+  return { success: true, bookingId }
 }
 
 export async function getAvailablePlots(projectId: string) {
