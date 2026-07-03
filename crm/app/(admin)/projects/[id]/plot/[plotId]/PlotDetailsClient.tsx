@@ -211,7 +211,7 @@ export default function PlotDetailsClient({
         if (result.success) {
           showToast('Plot transferred successfully', 'success');
           setShowTransferModal(false);
-          setTimeout(() => window.location.href = `/projects/${projectId}/plot/${actualPlotId}/booking/${transferBookingId}`, 800);
+          setTimeout(() => window.location.href = `/projects/${projectId}/plot/${actualPlotId}/booking/${result.bookingId || transferBookingId}`, 800);
         } else showToast(result.error || 'Failed', 'error');
       }
     });
