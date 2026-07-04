@@ -11,22 +11,27 @@ export default async function AdminLayout({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: profile } = user ? await supabase
+  if (!user) {
+    redirect('/login')
+  }
+
+  const { data: profile } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', user.id)
-    .single() : { data: null }
+    .single()
 
-  // Temporarily bypass auth for development
-  const devProfile = profile || { role: 'admin', full_name: 'Dev Mode' }
+  if (!profile) {
+    redirect('/login')
+  }
 
   // Fetch pending count for the sidebar badge (only meaningful for admin/master_admin)
-  const pendingCount = ['admin', 'master_admin'].includes(devProfile.role)
+  const pendingCount = ['admin', 'master_admin'].includes(profile.role)
     ? await getPendingChangesCount()
     : 0
 
   return (
-    <AdminShell userProfile={devProfile} pendingCount={pendingCount}>
+    <AdminShell userProfile={profile} pendingCount={pendingCount}>
       {children}
     </AdminShell>
   )
