@@ -13,8 +13,11 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [modeFilter, setModeFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [sortKey, setSortKey] = useState('payment_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const uniqueProjects = Array.from(new Set(data.map(r => r.project_name).filter(p => p && p !== '?'))).sort() as string[];
 
   const [showStampDuty, setShowStampDuty] = useState(false);
   const [showLegalFees, setShowLegalFees] = useState(false);
@@ -51,6 +54,7 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
         (r.description || '').toLowerCase().includes(s);
       const matchDate = (!startDate || r.payment_date >= startDate) && (!endDate || r.payment_date <= endDate);
       const matchMode = !modeFilter || r.payment_mode === modeFilter;
+      const matchProject = !projectFilter || r.project_name === projectFilter;
       
       // Fee toggle logic
       let feeMatch = true;
@@ -60,7 +64,7 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
       // if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
       // if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
 
-      return matchText && matchDate && matchMode && feeMatch;
+      return matchText && matchDate && matchMode && feeMatch && matchProject;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -153,6 +157,13 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
                 <option value="">All Payment Modes</option>
                 {uniqueModes.map((mode: any) => (
                   <option key={mode} value={mode}>{mode}</option>
+                ))}
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+                <option value="">All Projects</option>
+                {uniqueProjects.map(p => (
+                  <option key={p} value={p}>{p}</option>
                 ))}
               </select>
             </div>

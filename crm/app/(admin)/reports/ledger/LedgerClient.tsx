@@ -13,6 +13,9 @@ export default function LedgerClient({ data }: { data: any[] }) {
   const [sortKey, setSortKey] = useState('payment_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [txType, setTxType] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+
+  const uniqueProjects = Array.from(new Set(data.map(r => r.project_name).filter(Boolean))).sort() as string[];
 
   const [showStampDuty, setShowStampDuty] = useState(false);
   const [showLegalFees, setShowLegalFees] = useState(false);
@@ -25,9 +28,11 @@ export default function LedgerClient({ data }: { data: any[] }) {
       const matchText = (r.client_name || '').toLowerCase().includes(s) ||
         (r.plot_number || '').toLowerCase().includes(s) ||
         (r.payment_mode || '').toLowerCase().includes(s) ||
-        (r.description || '').toLowerCase().includes(s);
+        (r.description || '').toLowerCase().includes(s) ||
+        (r.project_name || '').toLowerCase().includes(s);
       const matchDate = (!startDate || r.payment_date >= startDate) && (!endDate || r.payment_date <= endDate);
       const matchType = !txType || r.transaction_type === txType;
+      const matchProject = !projectFilter || r.project_name === projectFilter;
       
       // Fee toggle logic
       let feeMatch = true;
@@ -37,7 +42,7 @@ export default function LedgerClient({ data }: { data: any[] }) {
       // if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
       // if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
 
-      return matchText && matchDate && matchType && feeMatch;
+      return matchText && matchDate && matchType && feeMatch && matchProject;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -123,6 +128,13 @@ export default function LedgerClient({ data }: { data: any[] }) {
                 <option value="">All Types</option>
                 <option value="credit">Credit (+)</option>
                 <option value="debit">Debit (-)</option>
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+                <option value="">All Projects</option>
+                {uniqueProjects.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
             </div>
             

@@ -12,8 +12,11 @@ import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
 export default function BookingClient({ data }: { data: any[] }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [sortKey, setSortKey] = useState('booking_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const uniqueProjects = Array.from(new Set(data.map(r => r.project_name).filter(Boolean))).sort() as string[];
 
   // PDF Preview Modal
   const [showPdfModal, setShowPdfModal] = useState(false);
@@ -55,7 +58,8 @@ export default function BookingClient({ data }: { data: any[] }) {
         (r.booking_code || '').toLowerCase().includes(s) ||
         (r.consultant_name || '').toLowerCase().includes(s);
       const matchStatus = !statusFilter || r.status === statusFilter;
-      return matchText && matchStatus;
+      const matchProject = !projectFilter || r.project_name === projectFilter;
+      return matchText && matchStatus && matchProject;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -178,6 +182,13 @@ export default function BookingClient({ data }: { data: any[] }) {
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
                 {/* <option value="cancelled">Cancelled</option> */}
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+                <option value="">All Projects</option>
+                {uniqueProjects.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
               <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
                 value={sortKey} onChange={e => setSortKey(e.target.value)}>
