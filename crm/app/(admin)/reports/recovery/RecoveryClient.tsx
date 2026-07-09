@@ -11,6 +11,9 @@ export default function RecoveryClient({ data }: { data: any[] }) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState('balance_due');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [projectFilter, setProjectFilter] = useState('');
+
+  const uniqueProjects = Array.from(new Set(data.map(r => r.project_name).filter(Boolean))).sort() as string[];
 
   const [showStampDuty, setShowStampDuty] = useState(false);
   const [showLegalFees, setShowLegalFees] = useState(false);
@@ -20,10 +23,12 @@ export default function RecoveryClient({ data }: { data: any[] }) {
   const filtered = [...data]
     .filter(r => {
       const s = search.toLowerCase();
-      return (r.name || '').toLowerCase().includes(s) ||
+      const matchText = (r.name || '').toLowerCase().includes(s) ||
         (r.plot_number || '').toLowerCase().includes(s) ||
         (r.project_name || '').toLowerCase().includes(s) ||
         (r.phone || '').includes(s);
+      const matchProject = !projectFilter || r.project_name === projectFilter;
+      return matchText && matchProject;
     })
     .sort((a, b) => {
       let va = a[sortKey], vb = b[sortKey];
@@ -141,6 +146,13 @@ export default function RecoveryClient({ data }: { data: any[] }) {
               <option value="balance_due">Sort: Balance Due</option>
               <option value="name">Sort: Client Name</option>
               <option value="total_amount">Sort: Deal Value</option>
+            </select>
+            <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+              <option value="">All Projects</option>
+              {uniqueProjects.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
             </select>
             <button onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700 hover:bg-gray-50 min-w-[70px]">

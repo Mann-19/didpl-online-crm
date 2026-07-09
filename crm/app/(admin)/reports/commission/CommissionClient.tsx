@@ -17,6 +17,9 @@ export default function CommissionClient({ data }: { data: any[] }) {
   const [endDate, setEndDate] = useState('');
   const [sortKey, setSortKey] = useState('payment_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [projectFilter, setProjectFilter] = useState('');
+
+  const uniqueProjects = Array.from(new Set(data.map(r => r.project_name).filter(Boolean))).sort() as string[];
 
   // Payout modal state
   const [payoutRow, setPayoutRow] = useState<any | null>(null);
@@ -37,7 +40,8 @@ export default function CommissionClient({ data }: { data: any[] }) {
       const matchDate =
         (!startDate || r.payment_date >= startDate) &&
         (!endDate || r.payment_date <= endDate);
-      return matchText && matchDate;
+      const matchProject = !projectFilter || r.project_name === projectFilter;
+      return matchText && matchDate && matchProject;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -165,6 +169,13 @@ export default function CommissionClient({ data }: { data: any[] }) {
               value={startDate} onChange={e => setStartDate(e.target.value)} />
             <input type="date" className="px-3 py-2 border border-gray-300 rounded-lg text-sm"
               value={endDate} onChange={e => setEndDate(e.target.value)} />
+            <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+              value={projectFilter} onChange={e => setProjectFilter(e.target.value)}>
+              <option value="">All Projects</option>
+              {uniqueProjects.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
             <select
               className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
               value={sortKey}
