@@ -90,6 +90,7 @@ export async function addPayment(formData: {
   transaction_id?: string;
   entity_id: string;
   payment_type?: string;
+  company_id?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
@@ -127,6 +128,7 @@ export async function addPayment(formData: {
       payment_type: formData.payment_type || 'Plot payment',
       commission_amount,
       tds_amount,
+      company_id: formData.company_id || null,
     }])
 
   if (error) {

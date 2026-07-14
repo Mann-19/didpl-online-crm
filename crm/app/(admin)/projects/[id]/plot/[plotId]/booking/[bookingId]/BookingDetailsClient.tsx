@@ -25,7 +25,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import DocumentSection from '@/components/documents/DocumentSection';
 
 export default function BookingDetailsClient({
-  initialBooking, clients, consultants, projectId, plotId, isAdmin, role
+  initialBooking, clients, consultants, projectId, plotId, isAdmin, role, companies = []
 }: any) {
   const [booking, setBooking] = useState(initialBooking);
 
@@ -77,7 +77,7 @@ export default function BookingDetailsClient({
 
   // Forms
   const [paymentForm, setPaymentForm] = useState({
-    amount: '', date: new Date().toISOString().split('T')[0], mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment', entity_id: ''
+    amount: '', date: new Date().toISOString().split('T')[0], mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment', entity_id: '', company_id: ''
   });
   const [discountValue, setDiscountValue] = useState(String(booking.discount_amount || 0));
   const [editBookingForm, setEditBookingForm] = useState({
@@ -346,6 +346,7 @@ export default function BookingDetailsClient({
         description: paymentForm.description,
         transaction_id: paymentForm.transaction_id || '',
         entity_id: paymentForm.entity_id || booking.client_id,
+        company_id: paymentForm.company_id || undefined,
         payment_type: paymentForm.payment_type
       };
 
@@ -877,12 +878,23 @@ export default function BookingDetailsClient({
               <button onClick={() => setShowPaymentModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleAddPayment} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Type</label>
-                <select value={paymentForm.payment_type} onChange={e => setPaymentForm({...paymentForm, payment_type: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
-                  <option value="Plot payment">Plot Payment</option>
-                  <option value="Legal fees">Legal & Gov Fees</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Type</label>
+                  <select value={paymentForm.payment_type} onChange={e => setPaymentForm({...paymentForm, payment_type: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    <option value="Plot payment">Plot Payment</option>
+                    <option value="Legal fees">Legal & Gov Fees</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Company Account</label>
+                  <select value={paymentForm.company_id} onChange={e => setPaymentForm({...paymentForm, company_id: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    <option value="">-- Unassigned --</option>
+                    {companies.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

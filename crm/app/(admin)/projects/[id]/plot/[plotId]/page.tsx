@@ -1,5 +1,6 @@
 import { getPlotDetails } from '../../../../plots.actions';
 import { getClients, getConsultants } from '../../../../people.actions';
+import { getCompanies } from '../../../../companies.actions';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import PlotDetailsClient from './PlotDetailsClient';
@@ -20,10 +21,11 @@ export default async function PlotDetailsPage({ params }: { params: Promise<{ id
   const role = profile?.role ?? 'employee';
   const isAdmin = role === 'admin' || role === 'master_admin';
 
-  const [plot, clients, consultants] = await Promise.all([
+  const [plot, clients, consultants, companies] = await Promise.all([
     getPlotDetails(plotId, projectId),
     getClients(),
-    getConsultants()
+    getConsultants(),
+    getCompanies()
   ]);
 
   if (!plot) {
@@ -35,6 +37,7 @@ export default async function PlotDetailsPage({ params }: { params: Promise<{ id
       initialPlot={plot}
       clients={clients}
       consultants={consultants}
+      companies={companies}
       projectId={projectId}
       isAdmin={isAdmin}
       role={role}
