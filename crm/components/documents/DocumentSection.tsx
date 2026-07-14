@@ -30,9 +30,10 @@ interface Pagination {
 interface Props {
   clientId: string;
   bookingId?: string;
+  showUploadButton?: boolean;
 }
 
-export default function DocumentSection({ clientId, bookingId }: Props) {
+export default function DocumentSection({ clientId, bookingId, showUploadButton = true }: Props) {
   const [documents,    setDocuments]    = useState<ClientDocument[]>([]);
   const [pagination,   setPagination]   = useState<Pagination>({ page: 1, limit: PAGE_SIZE, total: 0, hasMore: false });
   const [loading,      setLoading]      = useState(true);
@@ -106,13 +107,15 @@ export default function DocumentSection({ clientId, bookingId }: Props) {
               {pagination.total} {pagination.total === 1 ? 'file' : 'files'}
             </span>
           </div>
-          <button
-            onClick={() => setShowUpload(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <Upload className="w-4 h-4" />
-            Upload Document
-          </button>
+          {showUploadButton && (
+            <button
+              onClick={() => setShowUpload(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+            >
+              <Upload className="w-4 h-4" />
+              Upload Document
+            </button>
+          )}
         </div>
 
         {/* Search + Filter toolbar */}
