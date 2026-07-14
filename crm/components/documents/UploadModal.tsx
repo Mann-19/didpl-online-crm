@@ -83,7 +83,24 @@ export default function UploadModal({ clientId, bookingId, onClose, onUploadComp
 
       setProgress(85);
 
-      const data = await res.json();
+      // Safely parse response — non-JSON bodies (e.g. Vercel 413 "Request Entity Too Large")
+      // will crash if we blindly call res.json(). Check content-type first.
+      let data: any = {};
+      const contentType = res.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        // Plain-text or HTML error from the host (most likely a 413 / 502)
+        const text = await res.text();
+        if (!res.ok) {
+          const friendly =
+            res.status === 413
+              ? 'File is too large. Please upload a file under 4 MB.'
+              : `Server error (${res.status}). Please try again.`;
+          throw new Error(friendly);
+        }
+        data = { message: text };
+      }
 
       if (!res.ok) {
         throw new Error(data.error ?? 'Upload failed');

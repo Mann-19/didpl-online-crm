@@ -428,7 +428,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
         </div>
 
         {/* DOCUMENTS */}
-        <DocumentSection clientId={client.id} />
+        <DocumentSection clientId={client.id} showUploadButton={false} />
 
       </div>
 
