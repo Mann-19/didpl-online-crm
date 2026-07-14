@@ -1,5 +1,6 @@
 import { getBookingById } from '../../../../../../plots.actions';
 import { getClients, getConsultants } from '../../../../../../people.actions';
+import { getCompanies } from '../../../../../../companies.actions';
 import { createClient } from '@/utils/supabase/server';
 import { notFound } from 'next/navigation';
 import BookingDetailsClient from './BookingDetailsClient';
@@ -19,10 +20,11 @@ export default async function BookingDetailsPage({ params }: { params: Promise<{
   const role = profile?.role ?? 'employee';
   const isAdmin = role === 'admin' || role === 'master_admin';
 
-  const [booking, clients, consultants] = await Promise.all([
+  const [booking, clients, consultants, companies] = await Promise.all([
     getBookingById(bookingId),
     getClients(),
-    getConsultants()
+    getConsultants(),
+    getCompanies()
   ]);
 
   if (!booking) {
@@ -34,6 +36,7 @@ export default async function BookingDetailsPage({ params }: { params: Promise<{
       initialBooking={booking}
       clients={clients}
       consultants={consultants}
+      companies={companies}
       projectId={projectId}
       plotId={plotId}
       isAdmin={isAdmin}

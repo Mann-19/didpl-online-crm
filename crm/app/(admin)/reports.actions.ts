@@ -12,7 +12,7 @@ export async function getLedger() {
     .from('payments')
     .select(`
       id, amount, payment_date, payment_mode, transaction_type, payment_type,
-      description, entity_type, entity_id,
+      description, entity_type, entity_id, company:company_id(id, name),
       booking:booking_id (
         client:client_id ( id, name, phone ),
         plot:plot_id ( plot_number, project:project_id ( name ) )
@@ -58,6 +58,8 @@ export async function getLedger() {
       payment_mode: p.payment_mode,
       transaction_type: p.transaction_type,
       payment_type: p.payment_type || 'Plot payment',
+      company_id: p.company?.id || null,
+      company_name: p.company?.name || 'Unassigned',
       description: p.description,
       entity_type: p.entity_type,
       client_name,
@@ -239,6 +241,7 @@ export async function getReceiptReport() {
     .from('payments')
     .select(`
       id, receipt_no, amount, payment_date, payment_mode, description, transaction_id, payment_type,
+      company:company_id(id, name),
       booking:booking_id (
         client:client_id ( name, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
         plot:plot_id ( plot_number, project:project_id ( name ) ),
@@ -259,6 +262,8 @@ export async function getReceiptReport() {
     payment_type: p.payment_type || 'Plot payment',
     description: p.description,
     transaction_id: p.transaction_id || p.description || 'N/A',
+    company_id: p.company?.id || null,
+    company_name: p.company?.name || 'Unassigned',
     client_name: p.booking?.client?.name || '—',
     gender: p.booking?.client?.gender || null,
     residential_address: p.booking?.client?.residential_address || null,

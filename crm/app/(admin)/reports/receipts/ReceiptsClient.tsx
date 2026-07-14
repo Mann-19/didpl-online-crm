@@ -8,11 +8,12 @@ import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateReceipt } from '@/utils/pdf/generateReceipt';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 
-export default function ReceiptsClient({ data }: { data: any[] }) {
+export default function ReceiptsClient({ data, companies = [] }: { data: any[], companies?: any[] }) {
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [modeFilter, setModeFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [sortKey, setSortKey] = useState('payment_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -54,6 +55,7 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
         (r.description || '').toLowerCase().includes(s);
       const matchDate = (!startDate || r.payment_date >= startDate) && (!endDate || r.payment_date <= endDate);
       const matchMode = !modeFilter || r.payment_mode === modeFilter;
+      const matchCompany = !companyFilter || r.company_id === companyFilter;
       const matchProject = !projectFilter || r.project_name === projectFilter;
       
       // Fee toggle logic
@@ -64,7 +66,7 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
       // if (r.payment_type === 'Maintenance fees' && !showMaintenance) feeMatch = false;
       // if (r.payment_type === 'Registration fees' && !showRegistration) feeMatch = false;
 
-      return matchText && matchDate && matchMode && feeMatch && matchProject;
+      return matchText && matchDate && matchMode && feeMatch && matchCompany && matchProject;
     })
     .sort((a, b) => {
       let va: any = a[sortKey], vb: any = b[sortKey];
@@ -157,6 +159,13 @@ export default function ReceiptsClient({ data }: { data: any[] }) {
                 <option value="">All Payment Modes</option>
                 {uniqueModes.map((mode: any) => (
                   <option key={mode} value={mode}>{mode}</option>
+                ))}
+              </select>
+              <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                value={companyFilter} onChange={e => setCompanyFilter(e.target.value)}>
+                <option value="">All Companies</option>
+                {companies.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
               <select className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
