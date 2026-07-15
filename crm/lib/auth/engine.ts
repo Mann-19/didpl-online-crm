@@ -1,6 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
-import { PermissionKey } from '@/lib/permissions/catalog'
 import { redirect } from 'next/navigation'
+
+// PermissionKey is a string alias for a permission key (e.g. 'finance.view').
+// Full catalog is at lib/permissions/catalog.ts — this alias is used here to
+// avoid a cross-lib import that caused a Vercel build cache issue.
+// TODO(Phase 6): restore the direct import once the engine is wired to pages.
+type PermissionKey = string
 
 export type AuthContext = {
   user: {
