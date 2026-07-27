@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import ProjectNav from "@/components/projects/ProjectNav";
 import { getLayoutRenderer } from "@/components/projects/renderers";
 import BackLink from "@/components/ui/BackLink";
-import { DH3_ACTIVE_PLOTS, AEROTOWN_RESIDENCY_ACTIVE_PLOTS } from "@/app/project-utils";
+import { DH3_ACTIVE_PLOTS, AEROTOWN_RESIDENCY_ACTIVE_PLOTS } from "@/lib/analytics/projectStats";
 
 interface LayoutGridClientProps {
   project: any;

@@ -69,7 +69,9 @@ export default function UploadModal({ clientId, bookingId, onClose, onUploadComp
       const formData = new FormData();
       formData.append('file',          selectedFile);
       formData.append('client_id',     clientId);
-      formData.append('booking_id',    bookingId);
+      if (bookingId && bookingId.trim() !== '') {
+        formData.append('booking_id',  bookingId.trim());
+      }
       formData.append('document_type', docType);
       if (description.trim()) formData.append('description', description.trim());
 

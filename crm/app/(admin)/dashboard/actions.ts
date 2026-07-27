@@ -1,77 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
-import { filterActivePlots } from '@/app/project-utils'
-
-// ---------------------------------------------------------------------------
-// Helper: derive per-project stats (mirrors projects.actions.ts logic)
-// ---------------------------------------------------------------------------
-function calculateProjectStats(project: any, plots: any[]) {
-  const totalPlots = plots.length
-  let soldPlots = 0
-  let tokenPlots = 0
-  let fullyPaidPlots = 0
-  let unavailablePlots = 0
-  let amountReceived = 0
-  let totalRevenue = 0
-
-  plots.forEach((plot: any) => {
-    const activeBookings =
-      plot.bookings?.filter(
-        (b: any) => b.status === 'confirmed' || b.status === 'pending'
-      ) || []
-
-    let isFullyPaid = false
-    let isConfirmed = false
-    let plotRevenue = 0
-    const hasActiveBooking = activeBookings.length > 0
-
-    if (hasActiveBooking) {
-      activeBookings.forEach((b: any) => {
-        const dealValue =
-          (Number(b.total_amount) || 0) - (Number(b.discount_amount) || 0)
-        const paid = Number(b.amount_paid) || 0
-        if (dealValue > 0 && paid >= dealValue) isFullyPaid = true
-        if (b.status === 'confirmed') {
-          isConfirmed = true
-          plotRevenue += dealValue
-        }
-        amountReceived += paid
-      })
-    }
-
-    if (!isConfirmed) plotRevenue += Number(plot.price) || 0
-    totalRevenue += plotRevenue
-
-    let derivedStatus = 'available'
-    if (isFullyPaid && isConfirmed) derivedStatus = 'sold'
-    else if (isFullyPaid && !isConfirmed) derivedStatus = 'fully_paid'
-    else if (hasActiveBooking) derivedStatus = 'token_paid'
-
-    if (derivedStatus === 'sold') soldPlots++
-    if (derivedStatus === 'fully_paid') fullyPaidPlots++
-    if (derivedStatus === 'token_paid') tokenPlots++
-    if (derivedStatus !== 'available' || plot.status !== 'available') unavailablePlots++
-  })
-
-  const availablePlots = totalPlots - unavailablePlots
-  const collectionRate = totalRevenue > 0 ? (amountReceived / totalRevenue) * 100 : 0
-
-  return {
-    id: project.id,
-    name: project.name,
-    location: project.location || '',
-    status: project.status || 'active',
-    totalPlots,
-    soldPlots,
-    fullyPaidPlots,
-    tokenPlots,
-    availablePlots,
-    amountReceived,
-    totalRevenue,
-    collectionRate,
-  }
-}
+import { filterActivePlots, calculateProjectStats } from '@/lib/analytics/projectStats'
 
 // ---------------------------------------------------------------------------
 // Main dashboard data fetch
