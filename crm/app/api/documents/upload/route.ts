@@ -8,7 +8,10 @@ import {
   sanitizeFileName,
   getExtensionFromMime,
 } from '@/utils/documents/validation';
-import { buildStoragePath, BUCKET_NAME } from '@/utils/documents/storage';
+import { buildStoragePath, BUCKET_NAME, ensureStorageBucket } from '@/utils/documents/storage';
+
+export const maxDuration = 60;
+export const dynamic = 'force-dynamic';
 
 const VALID_DOC_TYPES = [
   'kyc', 'aadhaar_pan', 'property',
@@ -32,12 +35,15 @@ export async function POST(req: NextRequest) {
     const docType     = formData.get('document_type') as string | null;
     const description = formData.get('description')   as string | null;
 
-    if (!file || !clientId || !bookingId || !docType) {
+    if (!file || !clientId || !docType) {
       return NextResponse.json(
-        { error: 'Missing required fields: file, client_id, booking_id, document_type.' },
+        { error: 'Missing required fields: file, client_id, document_type.' },
         { status: 400 }
       );
     }
+
+    // Sanitize bookingId — convert empty strings to null for valid UUID columns in Postgres
+    const cleanBookingId = (bookingId && bookingId.trim() !== '') ? bookingId.trim() : null;
 
     // ── Validate document_type ───────────────────────────────────────
     if (!VALID_DOC_TYPES.includes(docType)) {
@@ -67,18 +73,38 @@ export async function POST(req: NextRequest) {
     const storagePath = buildStoragePath(clientId, docId, extension);
     const safeName    = sanitizeFileName(file.name);
 
+    // ── Ensure bucket exists ─────────────────────────────────────────
+    await ensureStorageBucket(supabaseAdmin);
+
     // ── Upload to Supabase Storage ───────────────────────────────────
     const arrayBuffer = await file.arrayBuffer();
-    const { error: storageError } = await supabaseAdmin.storage
+    const buffer = Buffer.from(arrayBuffer);
+
+    let { error: storageError } = await supabaseAdmin.storage
       .from(BUCKET_NAME)
-      .upload(storagePath, arrayBuffer, {
+      .upload(storagePath, buffer, {
         contentType: file.type,
         upsert: false,
       });
 
+    // Retry once if bucket was just created or missing
+    if (storageError && (storageError.message?.toLowerCase().includes('not found') || storageError.message?.toLowerCase().includes('bucket'))) {
+      await ensureStorageBucket(supabaseAdmin);
+      const retryResult = await supabaseAdmin.storage
+        .from(BUCKET_NAME)
+        .upload(storagePath, buffer, {
+          contentType: file.type,
+          upsert: true,
+        });
+      storageError = retryResult.error;
+    }
+
     if (storageError) {
       console.error('[Documents/Upload] Storage error:', storageError);
-      return NextResponse.json({ error: 'File upload failed. Please try again.' }, { status: 500 });
+      return NextResponse.json(
+        { error: storageError.message ? `Storage error: ${storageError.message}` : 'File upload failed. Please try again.' },
+        { status: 500 }
+      );
     }
 
     // ── Save metadata to database ────────────────────────────────────
@@ -87,7 +113,7 @@ export async function POST(req: NextRequest) {
       .insert({
         id:            docId,
         client_id:     clientId,
-        booking_id:    bookingId,
+        booking_id:    cleanBookingId,
         file_name:     safeName,
         storage_path:  storagePath,
         file_size:     file.size,
@@ -103,7 +129,10 @@ export async function POST(req: NextRequest) {
       // Rollback: remove the storage object so we don't have orphaned files
       console.error('[Documents/Upload] DB error — rolling back storage:', dbError);
       await supabaseAdmin.storage.from(BUCKET_NAME).remove([storagePath]);
-      return NextResponse.json({ error: 'Failed to save document metadata.' }, { status: 500 });
+      return NextResponse.json(
+        { error: `Failed to save document metadata: ${dbError.message}` },
+        { status: 500 }
+      );
     }
 
     // ── Audit log (non-blocking) ─────────────────────────────────────
@@ -121,8 +150,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ document: doc }, { status: 201 });
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('[Documents/Upload] Unexpected error:', err);
-    return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message ? `Upload failed: ${err.message}` : 'Internal server error.' },
+      { status: 500 }
+    );
   }
 }

@@ -17,3 +17,30 @@ export function buildStoragePath(clientId: string, docId: string, extension: str
   const safeExt = extension.replace(/^\./, '').toLowerCase();
   return `clients/${clientId}/${docId}.${safeExt}`;
 }
+
+/**
+ * Ensure that the Supabase Storage bucket exists.
+ * If missing (e.g. fresh production environment), creates it automatically.
+ */
+export async function ensureStorageBucket(supabaseAdminClient: any): Promise<boolean> {
+  try {
+    const { data: bucket, error } = await supabaseAdminClient.storage.getBucket(BUCKET_NAME);
+    if (error || !bucket) {
+      console.log(`[Storage] Bucket '${BUCKET_NAME}' not found or inaccessible. Attempting auto-creation...`);
+      const { error: createErr } = await supabaseAdminClient.storage.createBucket(BUCKET_NAME, {
+        public: false,
+        fileSizeLimit: 52428800, // 50 MB
+      });
+      if (createErr) {
+        console.error(`[Storage] Failed to create bucket '${BUCKET_NAME}':`, createErr);
+        return false;
+      }
+      console.log(`[Storage] Bucket '${BUCKET_NAME}' successfully created.`);
+    }
+    return true;
+  } catch (err) {
+    console.error(`[Storage] Exception in ensureStorageBucket:`, err);
+    return false;
+  }
+}
+
