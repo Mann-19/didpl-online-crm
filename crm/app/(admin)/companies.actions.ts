@@ -7,7 +7,7 @@ export async function getCompanies() {
 
   const { data, error } = await supabase
     .from('companies')
-    .select('id, name, slug')
+    .select('id, name, slug, display_name, primary_phone, primary_email, logo_url, address')
     .eq('status', 'active')
     .order('name')
 

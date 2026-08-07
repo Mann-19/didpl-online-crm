@@ -261,6 +261,8 @@ export default function BookingDetailsClient({
 
   const handleDownloadReceipt = async (payment: any) => {
     try {
+      // Look up company details for this payment
+      const paymentCompany = companies.find((c: any) => c.id === payment.company_id) || null;
       const payload = {
         client_name: booking.client?.name,
         gender: booking.client?.gender,
@@ -273,7 +275,13 @@ export default function BookingDetailsClient({
         payment_date: payment.payment_date,
         payment_mode: payment.payment_mode,
         payment_type: payment.payment_type || 'Plot payment',
-        id: payment.id
+        id: payment.id,
+        // Company details for dynamic receipt branding
+        company_name: paymentCompany?.name || null,
+        company_display_name: paymentCompany?.display_name || paymentCompany?.name || null,
+        company_phone: paymentCompany?.primary_phone || null,
+        company_email: paymentCompany?.primary_email || null,
+        company_logo: paymentCompany?.logo_url || null,
       };
       const result = await generateReceipt(payload, true);
       if (result) {
@@ -292,6 +300,11 @@ export default function BookingDetailsClient({
       const paymentsToMerge = (booking.payments || []).filter((p: any) => selectedPayments.includes(p.id));
       let plotSum = 0;
       let legalSum = 0;
+      // Use the company from the first selected payment (all merged payments should share a company)
+      const firstPayment = paymentsToMerge[0] || null;
+      const mergedCompany = firstPayment
+        ? companies.find((c: any) => c.id === firstPayment.company_id) || null
+        : null;
       paymentsToMerge.forEach((p: any) => {
         if (p.payment_type === 'Legal fees') legalSum += Number(p.amount);
         else plotSum += Number(p.amount);
@@ -305,6 +318,12 @@ export default function BookingDetailsClient({
         client_pincode: booking.client?.residential_pincode,
         plot_payment_total: plotSum,
         legal_fees_total: legalSum,
+        // Company details for dynamic receipt branding
+        company_name: mergedCompany?.name || null,
+        company_display_name: mergedCompany?.display_name || mergedCompany?.name || null,
+        company_phone: mergedCompany?.primary_phone || null,
+        company_email: mergedCompany?.primary_email || null,
+        company_logo: mergedCompany?.logo_url || null,
       };
       const result = await generateMergedReceipt(payload, true);
       if (result) {
