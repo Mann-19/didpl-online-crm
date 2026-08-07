@@ -39,10 +39,11 @@ export const generateMergedReceipt = async (data: any, preview: boolean = false)
   const contentWidth = pageWidth - (margin * 2);
   let y = 15;
 
-  // Watermark
+  // Watermark / Logo
+  const logoSrc = data.company_logo || '/DIDPL-LOGO.png';
   try {
     const watermarkImg = new Image();
-    watermarkImg.src = '/DIDPL-LOGO.png';
+    watermarkImg.src = logoSrc;
     await new Promise((resolve) => {
         watermarkImg.onload = resolve;
         watermarkImg.onerror = () => {
@@ -193,21 +194,28 @@ export const generateMergedReceipt = async (data: any, preview: boolean = false)
 
   y += 15;
 
-  // Contact Section
+  // Contact Section — dynamic company info
+  const companyDisplayName = data.company_display_name || data.company_name || 'Dholera Infra Development Pvt.Ltd';
+  const companyPhone = data.company_phone || '(+91) 8866909600';
+  const companyEmail = data.company_email || 'info@didpl.com';
+  const companyWebsite = data.company_email
+    ? `www.${data.company_email.split('@')[1] || 'didpl.com'}`
+    : 'www.didpl.com';
+
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   doc.text("For Any Further Queries Contact:", pageWidth / 2, y, { align: "center" });
   y += 7;
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("Dholera Infra Development Pvt.Ltd", pageWidth / 2, y, { align: "center" });
+  doc.text(companyDisplayName, pageWidth / 2, y, { align: "center" });
   y += 7;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
   
-  const contactText1 = "Tele: (+91) 8866909600 | Email: ";
-  const emailText = "info@didpl.com";
-  const contactText2 = " | www.didpl.com";
+  const contactText1 = `Tele: ${companyPhone} | Email: `;
+  const emailText = companyEmail;
+  const contactText2 = ` | ${companyWebsite}`;
   
   const w1 = doc.getTextWidth(contactText1);
   const wEmail = doc.getTextWidth(emailText);
