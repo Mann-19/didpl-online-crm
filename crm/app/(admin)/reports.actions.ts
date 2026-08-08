@@ -23,7 +23,7 @@ export async function getLedger() {
   if (error) { console.error('getLedger error:', error); return [] }
 
   const payments = data || []
-  
+
   // Find unlinked payments that belong to clients
   const unlinkedClientEntityIds = [...new Set(payments
     .filter((p: any) => p.entity_type === 'client' && !p.booking && p.entity_id)
@@ -31,13 +31,13 @@ export async function getLedger() {
   )]
 
   let clientMap: Record<string, string> = {}
-  
+
   if (unlinkedClientEntityIds.length > 0) {
     const { data: clientsData, error: clientsError } = await supabase
       .from('clients')
       .select('id, name')
       .in('id', unlinkedClientEntityIds)
-      
+
     if (!clientsError && clientsData) {
       clientsData.forEach((c: any) => {
         clientMap[c.id] = c.name
@@ -50,7 +50,7 @@ export async function getLedger() {
     if (!client_name && p.entity_type === 'client' && p.entity_id && clientMap[p.entity_id]) {
       client_name = clientMap[p.entity_id]
     }
-    
+
     return {
       id: p.id,
       amount: Number(p.amount),
