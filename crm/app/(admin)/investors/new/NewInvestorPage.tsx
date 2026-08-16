@@ -60,7 +60,7 @@ export default function NewInvestorPage({ referrers }: { referrers: any[] }) {
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors: Partial<Record<keyof FormData, string>> = {};
-        error.errors.forEach(err => {
+        (error as any).errors.forEach((err: any) => {
           if (err.path[0]) newErrors[err.path[0] as keyof FormData] = err.message;
         });
         setErrors(newErrors);

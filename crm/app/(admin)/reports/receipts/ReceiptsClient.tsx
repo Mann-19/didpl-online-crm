@@ -32,7 +32,18 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
 
   const handlePrintReceipt = async (receiptData: any) => {
     try {
-      const result = await generateReceipt(receiptData, true);
+      // Look up company details for this receipt's payment so the PDF uses
+      // the correct branding (logo, name, phone, email) per company split.
+      const paymentCompany = companies.find((c: any) => c.id === receiptData.company_id) || null;
+      const enrichedData = {
+        ...receiptData,
+        company_name: paymentCompany?.name || null,
+        company_display_name: paymentCompany?.display_name || paymentCompany?.name || null,
+        company_phone: paymentCompany?.primary_phone || null,
+        company_email: paymentCompany?.primary_email || null,
+        company_logo: paymentCompany?.logo_url || null,
+      };
+      const result = await generateReceipt(enrichedData, true);
       if (result) {
         setPdfDoc(result.doc);
         setPdfFileName(result.fileName);
