@@ -23,9 +23,9 @@ export default function InvestorListClient({ initialInvestors }: { initialInvest
       (inv.phone || '').toLowerCase().includes(term) ||
       (inv.investor_code || '').toLowerCase().includes(term);
 
-    const matchesActive = activeFilter === '' || 
-                          (activeFilter === 'active' && inv.active_investments_count > 0) ||
-                          (activeFilter === 'inactive' && inv.active_investments_count === 0);
+    const matchesActive = activeFilter === '' ||
+      (activeFilter === 'active' && inv.active_investments_count > 0) ||
+      (activeFilter === 'inactive' && inv.active_investments_count === 0);
 
     return matchesSearch && matchesActive;
   });
@@ -64,7 +64,7 @@ export default function InvestorListClient({ initialInvestors }: { initialInvest
   return (
     <div className="min-h-screen bg-gray-50 space-y-6 font-sans animate-in fade-in duration-300">
       <BackLink href="/investors" dirname="Investors" accent="indigo" />
-      
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -166,7 +166,7 @@ export default function InvestorListClient({ initialInvestors }: { initialInvest
                         {formatLakhs(inv.pending_returns)}
                       </td>
                       <td className="px-6 py-4 text-sm whitespace-nowrap">
-                        <Badge variant={inv.active_investments_count > 0 ? "warning" : "default"}>
+                        <Badge variant={inv.active_investments_count > 0 ? "warning" : "indigo"}>
                           {inv.active_investments_count} Active
                         </Badge>
                       </td>
