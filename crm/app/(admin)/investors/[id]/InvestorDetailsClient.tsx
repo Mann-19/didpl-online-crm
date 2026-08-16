@@ -43,7 +43,7 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    
+
     const amount = Number(formData.invested_amount) || 0;
     const rate = Number(formData.interest_rate) || 0;
     const mature = amount + (amount * rate / 100);
@@ -56,7 +56,7 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
       payment_mode: formData.payment_mode,
       transaction_id: formData.transaction_id,
     });
-    
+
     setIsSubmitting(false);
     setIsAddingInvestment(false);
     setFormData({ invested_amount: '', interest_rate: '', mature_date: '', payment_mode: 'bank_transfer', transaction_id: '' });
@@ -87,26 +87,26 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
             <div>
               <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                 {investor.name}
-                <Badge variant={stats.activeInvestmentsCount > 0 ? "warning" : "default"}>
+                <Badge variant={stats.activeInvestmentsCount > 0 ? "warning" : "indigo"}>
                   {stats.activeInvestmentsCount} Active
                 </Badge>
               </h1>
               <p className="text-sm text-gray-500 mt-1">Code: <span className="font-medium text-gray-700">{investor.investor_code}</span></p>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-8 w-full md:w-auto">
-             <div className="flex flex-col">
-               <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Invested</span>
-               <span className="text-xl font-bold text-gray-900">{formatLakhs(stats.totalInvested)}</span>
-             </div>
-             <div className="flex flex-col">
-               <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Pending Returns</span>
-               <span className="text-xl font-bold text-emerald-600">{formatLakhs(stats.pendingReturns)}</span>
-             </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Invested</span>
+              <span className="text-xl font-bold text-gray-900">{formatLakhs(stats.totalInvested)}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Pending Returns</span>
+              <span className="text-xl font-bold text-emerald-600">{formatLakhs(stats.pendingReturns)}</span>
+            </div>
           </div>
         </div>
-        
+
         <div className="bg-gray-50 border-t border-gray-200 p-4 px-6 md:px-8 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm text-gray-600">
           <div className="flex items-center gap-2">
             <Phone className="w-4 h-4 text-gray-400" />
@@ -144,19 +144,19 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
             <form onSubmit={handleAddSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Invested Amount (₹) *</label>
-                <input required type="number" value={formData.invested_amount} onChange={e => setFormData({...formData, invested_amount: e.target.value})} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
+                <input required type="number" value={formData.invested_amount} onChange={e => setFormData({ ...formData, invested_amount: e.target.value })} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Total Return (%) *</label>
-                <input required type="number" step="0.01" value={formData.interest_rate} onChange={e => setFormData({...formData, interest_rate: e.target.value})} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
+                <input required type="number" step="0.01" value={formData.interest_rate} onChange={e => setFormData({ ...formData, interest_rate: e.target.value })} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Mature Date *</label>
-                <input required type="date" value={formData.mature_date} onChange={e => setFormData({...formData, mature_date: e.target.value})} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
+                <input required type="date" value={formData.mature_date} onChange={e => setFormData({ ...formData, mature_date: e.target.value })} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Payment Mode</label>
-                <select value={formData.payment_mode} onChange={e => setFormData({...formData, payment_mode: e.target.value})} className={`w-full p-2 border border-gray-300 rounded-md text-sm bg-white ${theme.inputFocus}`}>
+                <select value={formData.payment_mode} onChange={e => setFormData({ ...formData, payment_mode: e.target.value })} className={`w-full p-2 border border-gray-300 rounded-md text-sm bg-white ${theme.inputFocus}`}>
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="cash">Cash</option>
                   <option value="cheque">Cheque</option>
@@ -164,9 +164,9 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">Transaction ID</label>
-                <input type="text" value={formData.transaction_id} onChange={e => setFormData({...formData, transaction_id: e.target.value})} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
+                <input type="text" value={formData.transaction_id} onChange={e => setFormData({ ...formData, transaction_id: e.target.value })} className={`w-full p-2 border border-gray-300 rounded-md text-sm ${theme.inputFocus}`} />
               </div>
-              
+
               <div className="col-span-full flex justify-end gap-2 mt-2">
                 <button type="button" onClick={() => setIsAddingInvestment(false)} className="px-4 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">Cancel</button>
                 <button type="submit" disabled={isSubmitting} className={`px-4 py-2 text-white text-sm font-medium rounded-md ${theme.button}`}>{isSubmitting ? 'Saving...' : 'Save Investment'}</button>
@@ -206,7 +206,7 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
                     </td>
                     <td className="p-4 text-sm text-right">
                       {inv.status === 'pending' ? (
-                        <button 
+                        <button
                           onClick={() => handleSettle(inv.id)}
                           className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline"
                         >
