@@ -6,6 +6,7 @@ import { ArrowLeft, Search, Calendar, Receipt, Download, Printer } from 'lucide-
 import { formatNumber } from '@/utils/formatNumber';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateReceipt } from '@/utils/pdf/generateReceipt';
+import { generateMergedReceipt } from '@/utils/pdf/generateMergedReceipt';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 
 export default function ReceiptsClient({ data, companies = [] }: { data: any[], companies?: any[] }) {
@@ -30,6 +31,9 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
 
+  // Merged receipt selection
+  const [selectedReceipts, setSelectedReceipts] = useState<string[]>([]);
+
   const handlePrintReceipt = async (receiptData: any) => {
     try {
       // Look up company details for this receipt's payment so the PDF uses
@@ -37,11 +41,11 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
       const paymentCompany = companies.find((c: any) => c.id === receiptData.company_id) || null;
       const enrichedData = {
         ...receiptData,
-        company_name: paymentCompany?.name || null,
-        company_display_name: paymentCompany?.display_name || paymentCompany?.name || null,
-        company_phone: paymentCompany?.primary_phone || null,
-        company_email: paymentCompany?.primary_email || null,
-        company_logo: paymentCompany?.logo_url || null,
+        company_name: paymentCompany?.name || receiptData.company_name || null,
+        company_display_name: paymentCompany?.display_name || paymentCompany?.name || receiptData.company_display_name || null,
+        company_phone: paymentCompany?.primary_phone || receiptData.company_phone || null,
+        company_email: paymentCompany?.primary_email || receiptData.company_email || null,
+        company_logo: paymentCompany?.logo_url || receiptData.company_logo || null,
       };
       const result = await generateReceipt(enrichedData, true);
       if (result) {
@@ -52,6 +56,56 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
     } catch (e) {
       console.error(e);
       alert('Failed to generate Receipt');
+    }
+  };
+
+  const handleDownloadMergedReceipt = async () => {
+    const rowsToMerge = filtered.filter(r => selectedReceipts.includes(r.id));
+    if (rowsToMerge.length === 0) return;
+
+    // Aggregate totals split by type
+    let plotSum = 0;
+    let legalSum = 0;
+    rowsToMerge.forEach((r: any) => {
+      if (r.payment_type === 'Legal fees' || r.payment_type === 'Gov fees') {
+        legalSum += Number(r.amount);
+      } else {
+        plotSum += Number(r.amount);
+      }
+    });
+
+    // Use company branding from the first selected row (all selected rows should
+    // ideally belong to the same company — same convention as BookingDetailsClient).
+    const firstRow = rowsToMerge[0];
+    const mergedCompany = companies.find((c: any) => c.id === firstRow.company_id) || null;
+
+    const payload = {
+      client_name: firstRow.client_name,
+      gender: firstRow.gender,
+      residential_address: firstRow.residential_address,
+      client_city: firstRow.client_city,
+      client_state: firstRow.client_state,
+      client_pincode: firstRow.client_pincode,
+      plot_payment_total: plotSum,
+      legal_fees_total: legalSum,
+      // Company branding — prefer live companies lookup, fall back to row data
+      company_name: mergedCompany?.name || firstRow.company_name || null,
+      company_display_name: mergedCompany?.display_name || mergedCompany?.name || firstRow.company_display_name || null,
+      company_phone: mergedCompany?.primary_phone || firstRow.company_phone || null,
+      company_email: mergedCompany?.primary_email || firstRow.company_email || null,
+      company_logo: mergedCompany?.logo_url || firstRow.company_logo || null,
+    };
+
+    try {
+      const result = await generateMergedReceipt(payload, true);
+      if (result) {
+        setPdfDoc(result.doc);
+        setPdfFileName(result.fileName);
+        setShowPdfModal(true);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to generate merged receipt');
     }
   };
 
@@ -232,11 +286,48 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
             </div>
           </div>
 
+          {/* Merged Receipt Toolbar */}
+          {selectedReceipts.length > 0 && (
+            <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 flex items-center justify-between">
+              <span className="text-sm font-semibold text-emerald-700">
+                {selectedReceipts.length} receipt{selectedReceipts.length > 1 ? 's' : ''} selected
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setSelectedReceipts([])}
+                  className="text-xs text-gray-500 hover:text-gray-700 underline"
+                >
+                  Clear selection
+                </button>
+                <button
+                  onClick={handleDownloadMergedReceipt}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <Printer className="w-4 h-4" /> Download Merged Receipt
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Table */}
           <div className="overflow-x-auto">
             <table className="w-full text-sm whitespace-nowrap">
               <thead className="bg-gray-50 border-b text-xs font-bold text-gray-500 uppercase">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      checked={selectedReceipts.length > 0 && selectedReceipts.length === filtered.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedReceipts(filtered.map(r => r.id));
+                        } else {
+                          setSelectedReceipts([]);
+                        }
+                      }}
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left">Date & Receipt No</th>
                   <th className="px-4 py-3 text-left">Client Details</th>
                   <th className="px-4 py-3 text-left">Property Details</th>
@@ -247,9 +338,23 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={5} className="p-8 text-center text-gray-400">No receipts found.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-gray-400">No receipts found.</td></tr>
                 ) : filtered.map(r => (
-                  <tr key={r.id} className="hover:bg-emerald-50/20 transition-colors group">
+                  <tr key={r.id} className={`hover:bg-emerald-50/20 transition-colors group ${selectedReceipts.includes(r.id) ? 'bg-emerald-50/30' : ''}`}>
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        checked={selectedReceipts.includes(r.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedReceipts([...selectedReceipts, r.id]);
+                          } else {
+                            setSelectedReceipts(selectedReceipts.filter(id => id !== r.id));
+                          }
+                        }}
+                      />
+                    </td>
                     <td className="px-4 py-4">
                       <div className="font-medium text-gray-900">{fmt(r.payment_date)}</div>
                       <div className="text-xs font-mono text-gray-500 mt-0.5">{r.receipt_no || 'Manual Entry'}</div>
@@ -298,13 +403,15 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
               </tbody>
               <tfoot className="bg-gray-50 border-t">
                 <tr>
-                  <td colSpan={4} className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Receipts</td>
+                  <td colSpan={5} className="px-4 py-3 text-right text-xs font-bold text-gray-500 uppercase">{filtered.length} Receipts</td>
                   <td className="px-4 py-3 text-right font-bold text-emerald-700 text-base">₹{formatNumber(totalAmount)}</td>
+                  <td />
                 </tr>
               </tfoot>
             </table>
           </div>
         </div>
+
       </div>
 
       {/* PDF PREVIEW MODAL */}
