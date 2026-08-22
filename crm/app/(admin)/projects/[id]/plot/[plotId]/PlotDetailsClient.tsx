@@ -13,6 +13,7 @@ import {
   createBooking, confirmBooking, cancelBooking, addPayment, 
   transferBooking, getTransferablePlotsForClient, mergeTransferIntoPartnership
 } from '../../../../plots.actions';
+import BackLink from '@/components/ui/BackLink';
 
 export default function PlotDetailsClient({
   initialPlot, clients, projectId, isAdmin, role, companies = []
@@ -251,10 +252,7 @@ export default function PlotDetailsClient({
 
         {/* HEADER */}
         <div>
-          <Link href={`/projects/${projectId}/list`}
-            className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-violet-600 mb-3">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Plots
-          </Link>
+          <BackLink accent="violet" />
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Plot {plot.plot_number}</h1>
             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${plotStatusBadge()}`}>

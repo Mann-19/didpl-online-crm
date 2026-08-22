@@ -8,6 +8,7 @@ import { parseFee } from '@/utils/parseFee';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
+import BackLink from '@/components/ui/BackLink';
 
 export default function BookingClient({ data }: { data: any[] }) {
   const [search, setSearch] = useState('');
@@ -130,9 +131,7 @@ export default function BookingClient({ data }: { data: any[] }) {
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 font-sans animate-in fade-in duration-300">
       <div className="max-w-7xl mx-auto space-y-6">
         <div>
-          <Link href="/reports" className="inline-flex items-center text-sm text-gray-500 hover:text-emerald-600 mb-3">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Reports
-          </Link>
+          <BackLink accent="emerald" />
         <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Booking Report</h1>

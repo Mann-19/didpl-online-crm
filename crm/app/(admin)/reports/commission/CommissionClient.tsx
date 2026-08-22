@@ -6,6 +6,7 @@ import { ArrowLeft, Search, TrendingUp, Percent, Wallet, Download, HandCoins, Ch
 import { formatNumber } from '@/utils/formatNumber';
 import { exportToPDF } from '@/utils/pdf/exportToPDF';
 import { addConsultantPayout } from '@/app/(admin)/people.actions';
+import BackLink from '@/components/ui/BackLink';
 
 const fmt = (d: string) => d
   ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -115,9 +116,7 @@ export default function CommissionClient({ data }: { data: any[] }) {
 
         {/* Header */}
         <div>
-          <Link href="/reports" className="inline-flex items-center text-sm text-gray-500 hover:text-emerald-600 mb-3">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Reports
-          </Link>
+          <BackLink accent="emerald" />
           <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Commission Report</h1>

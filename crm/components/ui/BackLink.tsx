@@ -28,7 +28,7 @@ export default function BackLink({ dirname, accent = 'blue' }: BackLinkProps) {
         className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors ${accentColors[accent]}`}
       >
         <ArrowLeft className="w-4 h-4" />
-        Go back
+        Back
       </button>
     </div>
   );

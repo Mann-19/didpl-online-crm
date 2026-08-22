@@ -23,6 +23,7 @@ import { generateReceipt } from '@/utils/pdf/generateReceipt';
 import { generateMergedReceipt } from '@/utils/pdf/generateMergedReceipt';
 import { Toast, useToast } from '@/components/ui/Toast';
 import DocumentSection from '@/components/documents/DocumentSection';
+import BackLink from '@/components/ui/BackLink';
 
 export default function BookingDetailsClient({
   initialBooking, clients, consultants, projectId, plotId, isAdmin, role, companies = []
@@ -87,7 +88,7 @@ export default function BookingDetailsClient({
     status: booking.status,
   });
   const [editPaymentForm, setEditPaymentForm] = useState({
-    id: '', amount: '', payment_date: '', payment_mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment'
+    id: '', amount: '', payment_date: '', payment_mode: 'Cash', description: '', transaction_id: '', payment_type: 'Plot payment', company_id: ''
   });
 
   useEffect(() => {
@@ -298,34 +299,25 @@ export default function BookingDetailsClient({
   const handleDownloadMergedReceipt = async () => {
     try {
       const paymentsToMerge = (booking.payments || []).filter((p: any) => selectedPayments.includes(p.id));
-      let plotSum = 0;
-      let legalSum = 0;
-      // Use the company from the first selected payment (all merged payments should share a company)
-      const firstPayment = paymentsToMerge[0] || null;
-      const mergedCompany = firstPayment
-        ? companies.find((c: any) => c.id === firstPayment.company_id) || null
-        : null;
-      paymentsToMerge.forEach((p: any) => {
-        if (p.payment_type === 'Legal fees') legalSum += Number(p.amount);
-        else plotSum += Number(p.amount);
+      const enrichedReceipts = paymentsToMerge.map((p: any) => {
+        const paymentCompany = companies.find((c: any) => c.id === p.company_id) || null;
+        return {
+          ...p,
+          client_name: booking.client?.name,
+          gender: booking.client?.gender,
+          residential_address: booking.client?.residential_address,
+          client_city: booking.client?.residential_city,
+          client_state: booking.client?.residential_state,
+          client_pincode: booking.client?.residential_pincode,
+          // Company details for dynamic receipt branding
+          company_name: paymentCompany?.name || null,
+          company_display_name: paymentCompany?.display_name || paymentCompany?.name || null,
+          company_phone: paymentCompany?.primary_phone || null,
+          company_email: paymentCompany?.primary_email || null,
+          company_logo: paymentCompany?.logo_url || null,
+        };
       });
-      const payload = {
-        client_name: booking.client?.name,
-        gender: booking.client?.gender,
-        residential_address: booking.client?.residential_address,
-        client_city: booking.client?.residential_city,
-        client_state: booking.client?.residential_state,
-        client_pincode: booking.client?.residential_pincode,
-        plot_payment_total: plotSum,
-        legal_fees_total: legalSum,
-        // Company details for dynamic receipt branding
-        company_name: mergedCompany?.name || null,
-        company_display_name: mergedCompany?.display_name || mergedCompany?.name || null,
-        company_phone: mergedCompany?.primary_phone || null,
-        company_email: mergedCompany?.primary_email || null,
-        company_logo: mergedCompany?.logo_url || null,
-      };
-      const result = await generateMergedReceipt(payload, true);
+      const result = await generateMergedReceipt(enrichedReceipts, true);
       if (result) {
         setPdfDoc(result.doc);
         setPdfFileName(result.fileName);
@@ -430,7 +422,8 @@ export default function BookingDetailsClient({
         payment_mode: editPaymentForm.payment_mode,
         description: editPaymentForm.description,
         transaction_id: editPaymentForm.transaction_id || '',
-        payment_type: editPaymentForm.payment_type
+        payment_type: editPaymentForm.payment_type,
+        company_id: editPaymentForm.company_id || null
       });
       if (result.success) { showToast('Payment updated', 'success'); setShowEditPaymentModal(false); setTimeout(reload, 800); }
       else showToast(result.error || 'Failed', 'error');
@@ -484,10 +477,7 @@ export default function BookingDetailsClient({
 
         {/* Top Navigation */}
         <div>
-          <Link href={`/projects/${projectId}/plot/${plotId}`}
-            className="inline-flex items-center text-sm font-medium text-gray-500 hover:text-violet-600 mb-3">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Plot Details
-          </Link>
+          <BackLink accent="violet" />
           <div className="flex flex-wrap justify-between items-end gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Booking Details</h1>
@@ -838,11 +828,12 @@ export default function BookingDetailsClient({
                         {(isAdmin || isEmployee) && (
                           <button
                             onClick={() => {
-                              setEditPaymentForm({
-                                id: payment.id, amount: payment.amount.toString(), payment_date: payment.payment_date,
-                                payment_mode: payment.payment_mode, transaction_id: payment.transaction_id || '',
-                                description: payment.description || '', payment_type: payment.payment_type || 'Plot payment'
-                              });
+                                setEditPaymentForm({
+                                  id: payment.id, amount: payment.amount.toString(), payment_date: payment.payment_date,
+                                  payment_mode: payment.payment_mode, transaction_id: payment.transaction_id || '',
+                                  description: payment.description || '', payment_type: payment.payment_type || 'Plot payment',
+                                  company_id: payment.company_id || ''
+                                });
                               setActivePaymentId(payment.id);
                               setShowEditPaymentModal(true);
                             }}
@@ -1033,12 +1024,23 @@ export default function BookingDetailsClient({
               <button onClick={() => setShowEditPaymentModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleEditPayment} className="p-6 space-y-4">
-               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Type</label>
-                <select value={editPaymentForm.payment_type} onChange={e => setEditPaymentForm({...editPaymentForm, payment_type: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
-                  <option value="Plot payment">Plot Payment</option>
-                  <option value="Legal fees">Legal & Gov Fees</option>
-                </select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Payment Type</label>
+                  <select value={editPaymentForm.payment_type} onChange={e => setEditPaymentForm({...editPaymentForm, payment_type: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    <option value="Plot payment">Plot Payment</option>
+                    <option value="Legal fees">Legal & Gov Fees</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Company Account</label>
+                  <select value={editPaymentForm.company_id} onChange={e => setEditPaymentForm({...editPaymentForm, company_id: e.target.value})} className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg text-sm">
+                    <option value="">-- Unassigned --</option>
+                    {companies.map((c: any) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

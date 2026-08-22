@@ -39,21 +39,23 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   const contentWidth = pageWidth - (margin * 2);
   let y = 15;
 
-  // Watermark / Logo
-  const logoSrc = data.company_logo || '/DIDPL-LOGO.png';
+  // Watermark / Logo — pick logo based on company identity
+  const companySlug = (data.company_slug || data.company_name || '').toLowerCase();
+  const isLLP = companySlug.includes('llp');
+  const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : '/DIDPL-LOGO.png');
   try {
     const watermarkImg = new Image();
     watermarkImg.src = logoSrc;
     await new Promise((resolve) => {
-        watermarkImg.onload = resolve;
-        watermarkImg.onerror = () => {
-            console.warn("Failed to load logo image");
-            resolve(null);
-        };
+      watermarkImg.onload = resolve;
+      watermarkImg.onerror = () => {
+        console.warn("Failed to load logo image");
+        resolve(null);
+      };
     });
 
 
-    
+
     // Logo
     doc.addImage(watermarkImg, 'PNG', pageWidth / 2 - 15, y, 30, 30);
     y += 38;
@@ -102,16 +104,16 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   if (data.client_pincode) {
     line2 += line2 ? ` - ${data.client_pincode}` : `Pincode: ${data.client_pincode}`;
   }
-  
+
   const addrParts = [addressText];
   if (line2) addrParts.push(line2);
 
   const fullAddress = addrParts.join(', ').replace(/\n/g, ', ');
-  
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   const labelWidth = doc.getTextWidth("Address: ");
-  
+
   doc.setFont("helvetica", "normal");
   const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 6 - labelWidth);
   const addressHeight = Math.max(12, addressLines.length * 6 + 6);
@@ -132,7 +134,7 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
 
   // Payment Details Table - Row 1
   const pureAmount = Number(String(data.amount || 0).replace(/,/g, ''));
-  
+
   const wordsStr = toIndianWords(pureAmount);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
@@ -186,14 +188,14 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
 
   // Payment Details Table - Row 3
   doc.rect(margin, y, contentWidth, 8);
-  
+
   // Col 1 - Payment Mode
   doc.setFont("helvetica", "normal");
   doc.text("Payment Mode: ", margin + 2, y + 5.5);
   const modeLabelWidth = doc.getTextWidth("Payment Mode: ");
   doc.setFont("helvetica", "bold");
   doc.text((data.payment_mode || "UPI").toUpperCase(), margin + 2 + modeLabelWidth, y + 5.5);
-  
+
   // Col 2 - Receipt Type
   doc.setFont("helvetica", "normal");
   doc.text("Receipt Type: ", col2X + 2, y + 5.5);
@@ -222,18 +224,18 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   y += 7;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(12);
-  
+
   const contactText1 = `Tele: ${companyPhone} | Email: `;
   const emailText = companyEmail;
   const contactText2 = ` | ${companyWebsite}`;
-  
+
   const w1 = doc.getTextWidth(contactText1);
   const wEmail = doc.getTextWidth(emailText);
   const w2 = doc.getTextWidth(contactText2);
   const totalW = w1 + wEmail + w2;
-  
+
   let currentX = (pageWidth - totalW) / 2;
-  
+
   doc.text(contactText1, currentX, y);
   currentX += w1;
   doc.setTextColor(0, 51, 153);
@@ -241,43 +243,47 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   doc.setTextColor(0, 0, 0);
   currentX += wEmail;
   doc.text(contactText2, currentX, y);
-  
+
   y += 12;
 
-  // Terms & Conditions
+  // Terms & Conditions — clamped to stay within the page border (pageHeight - 22)
+  const maxY = pageHeight - 22;
   doc.line(margin, y, pageWidth - margin, y);
-  y += 6;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.text("Terms & Conditions:", margin, y);
-  y += 6;
+  y += 5;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  if (y < maxY) doc.text("Terms & Conditions:", margin, y);
+  y += 5;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
+  doc.setFontSize(8);
   const terms = [
-    "1. THIS RECEIPT DOESN'T CREAT OR ESTABLISH ANY RIGHT OF TITLE INTEREST ON THE PLOT/PROPERTY.",
+    "1. THIS RECEIPT DOESN'T CREATE OR ESTABLISH ANY RIGHT OF TITLE INTEREST ON THE PLOT/PROPERTY.",
     "2. ANY PAYMENT RECEIVED WILL BE TREATED AS NON REFUNDABLE DEPOSIT.",
-    "3. IN CASE OF DISPUTES, ALL RIGHT ARE RESERVED BY THE MANAGEMENT.",
+    "3. IN CASE OF DISPUTES, ALL RIGHTS ARE RESERVED BY THE MANAGEMENT.",
     "4. CHEQUE RETURN CHARGES SHALL BE LEVIED RS.500 PER CHEQUE PER TRANSACTION.",
-    "5. THE COMPANY RESERVES ALL RIGHT TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF",
-    "CANCELLATION/TERMINATION OF BOOKING.",
-    "6. ANY DISPUTE ARISES SHALL BE SUBJECT TO VADODARA JURISDICTION ONLY.",
+    "5. THE COMPANY RESERVES ALL RIGHTS TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF CANCELLATION/TERMINATION OF BOOKING.",
+    "6. ANY DISPUTE ARISING SHALL BE SUBJECT TO VADODARA JURISDICTION ONLY.",
     "7. CHEQUES ARE SUBJECT TO REALISATION.",
     "8. FINAL RECEIPT WILL BE ISSUED AFTER VERIFIED BY ACCOUNT DEPARTMENT.",
     "9. THIS IS TEMPORARY ACKNOWLEDGEMENT TILL VERIFICATION.",
-    "10. THIS IS COMPUTER GENERATED RECEIPT REFLECTING ENTRY WITHOUT VERIFICATION, SIGNATURE IS NOT",
-    "REQUIRED."
+    "10. THIS IS COMPUTER GENERATED RECEIPT REFLECTING ENTRY WITHOUT VERIFICATION, SIGNATURE IS NOT REQUIRED.",
   ];
 
+  const lineSpacing = 6;
   terms.forEach((term) => {
-    doc.text(term, margin, y);
-    y += 4.5;
+    if (y + lineSpacing <= maxY) {
+      doc.text(term, margin, y);
+      y += lineSpacing;
+    }
   });
 
-  y += 10;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(22);
-  doc.text("Thank You", pageWidth / 2, y, { align: "center" });
+  y += 5;
+  if (y < maxY) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.text("Thank You", pageWidth / 2, Math.min(y, maxY - 4), { align: "center" });
+  }
 
   const fileName = `Receipt_${(data.receipt_no || data.id || 'Payment')}.pdf`;
 

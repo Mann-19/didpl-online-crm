@@ -13,6 +13,7 @@ import { Toast, useToast } from '@/components/ui/Toast';
 import { generateWelcomeLetter } from '@/utils/pdf/generateWelcomeLetter';
 import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import DocumentSection from '@/components/documents/DocumentSection';
+import BackLink from '@/components/ui/BackLink';
 
 const InfoRow = ({ icon: Icon, label, value }: any) => (
   <div className="grid grid-cols-3 gap-4 items-start py-2.5 border-b border-gray-50 last:border-0">
@@ -185,9 +186,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
 
         {/* HEADER */}
         <div>
-          <Link href="/clients/list" className="inline-flex items-center text-sm text-gray-500 hover:text-blue-600 mb-3">
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Clients
-          </Link>
+          <BackLink accent="blue" />
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-3">

@@ -63,41 +63,27 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
     const rowsToMerge = filtered.filter(r => selectedReceipts.includes(r.id));
     if (rowsToMerge.length === 0) return;
 
-    // Aggregate totals split by type
-    let plotSum = 0;
-    let legalSum = 0;
-    rowsToMerge.forEach((r: any) => {
-      if (r.payment_type === 'Legal fees' || r.payment_type === 'Gov fees') {
-        legalSum += Number(r.amount);
-      } else {
-        plotSum += Number(r.amount);
-      }
+    const enrichedReceipts = rowsToMerge.map(firstRow => {
+      const mergedCompany = companies.find((c: any) => c.id === firstRow.company_id) || null;
+      return {
+        ...firstRow,
+        client_name: firstRow.client_name,
+        gender: firstRow.gender,
+        residential_address: firstRow.residential_address,
+        client_city: firstRow.client_city,
+        client_state: firstRow.client_state,
+        client_pincode: firstRow.client_pincode,
+        // Company branding — prefer live companies lookup, fall back to row data
+        company_name: mergedCompany?.name || firstRow.company_name || null,
+        company_display_name: mergedCompany?.display_name || mergedCompany?.name || firstRow.company_display_name || null,
+        company_phone: mergedCompany?.primary_phone || firstRow.company_phone || null,
+        company_email: mergedCompany?.primary_email || firstRow.company_email || null,
+        company_logo: mergedCompany?.logo_url || firstRow.company_logo || null,
+      };
     });
 
-    // Use company branding from the first selected row (all selected rows should
-    // ideally belong to the same company — same convention as BookingDetailsClient).
-    const firstRow = rowsToMerge[0];
-    const mergedCompany = companies.find((c: any) => c.id === firstRow.company_id) || null;
-
-    const payload = {
-      client_name: firstRow.client_name,
-      gender: firstRow.gender,
-      residential_address: firstRow.residential_address,
-      client_city: firstRow.client_city,
-      client_state: firstRow.client_state,
-      client_pincode: firstRow.client_pincode,
-      plot_payment_total: plotSum,
-      legal_fees_total: legalSum,
-      // Company branding — prefer live companies lookup, fall back to row data
-      company_name: mergedCompany?.name || firstRow.company_name || null,
-      company_display_name: mergedCompany?.display_name || mergedCompany?.name || firstRow.company_display_name || null,
-      company_phone: mergedCompany?.primary_phone || firstRow.company_phone || null,
-      company_email: mergedCompany?.primary_email || firstRow.company_email || null,
-      company_logo: mergedCompany?.logo_url || firstRow.company_logo || null,
-    };
-
     try {
-      const result = await generateMergedReceipt(payload, true);
+      const result = await generateMergedReceipt(enrichedReceipts, true);
       if (result) {
         setPdfDoc(result.doc);
         setPdfFileName(result.fileName);
