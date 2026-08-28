@@ -31,7 +31,7 @@ const statusBadge = (status: string) => {
   return 'bg-amber-100 text-amber-700';
 };
 
-export default function ClientDetailClient({ client, isAdmin, role }: any) {
+export default function ClientDetailClient({ client, isAdmin, role, companies = [] }: any) {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
   const [activePaymentId, setActivePaymentId] = useState<string | null>(null);
@@ -41,6 +41,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
     payment_mode: 'Cash',
     description: '',
     transaction_id: '',
+    company_id: '',
   });
   const [isPending, startTransition] = useTransition();
   const { toast, showToast, hideToast } = useToast();
@@ -145,6 +146,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
         payment_mode: editPaymentForm.payment_mode,
         description: editPaymentForm.description,
         transaction_id: editPaymentForm.transaction_id || '',
+        company_id: editPaymentForm.company_id || null,
       });
       if (result.success) {
         setShowEditPaymentModal(false);
@@ -397,6 +399,7 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                                     payment_mode: p.payment_mode || 'Cash',
                                     description: p.description || '',
                                     transaction_id: p.transaction_id || '',
+                                    company_id: p.company_id || '',
                                   });
                                   setShowEditPaymentModal(true);
                                 }}
@@ -609,6 +612,17 @@ export default function ClientDetailClient({ client, isAdmin, role }: any) {
                     <option>NEFT/IMPS/RTGS</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company Account</label>
+                <select className="w-full p-2 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white"
+                  value={editPaymentForm.company_id}
+                  onChange={e => setEditPaymentForm({ ...editPaymentForm, company_id: e.target.value })}>
+                  <option value="">-- Unassigned --</option>
+                  {companies.map((c: any) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

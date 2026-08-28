@@ -42,7 +42,8 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   // Watermark / Logo — pick logo based on company identity
   const companySlug = (data.company_slug || data.company_name || '').toLowerCase();
   const isLLP = companySlug.includes('llp');
-  const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : '/DIDPL-LOGO.png');
+  const isAerotown = companySlug.includes('aerotown');
+  const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : isAerotown ? '/AeroTownLogo.jpeg' : '/DIDPL-LOGO.png');
   try {
     const watermarkImg = new Image();
     watermarkImg.src = logoSrc;
@@ -57,7 +58,11 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
 
 
     // Logo
-    doc.addImage(watermarkImg, 'PNG', pageWidth / 2 - 15, y, 30, 30);
+    if (isAerotown) {
+      doc.addImage(watermarkImg, 'PNG', pageWidth / 2 - 15, y, 45, 30);
+    } else {
+      doc.addImage(watermarkImg, 'PNG', pageWidth / 2 - 15, y, 30, 30);
+    }
     y += 38;
   } catch (e) {
     console.warn("Watermark logo missing", e);

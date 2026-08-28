@@ -20,5 +20,10 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   const client = await getClientById(id);
   if (!client) notFound();
 
-  return <ClientDetailClient client={client} isAdmin={isAdmin} role={role} />;
+  const { data: companies } = await supabase
+    .from('companies')
+    .select('id, name')
+    .order('name');
+
+  return <ClientDetailClient client={client} isAdmin={isAdmin} role={role} companies={companies || []} />;
 }

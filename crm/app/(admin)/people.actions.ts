@@ -340,6 +340,7 @@ export async function updateClientPayment(
     payment_mode: string
     description: string
     transaction_id: string
+    company_id: string | null
   }>
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
