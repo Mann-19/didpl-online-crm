@@ -60,7 +60,7 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
   };
 
   const handleDownloadMergedReceipt = async () => {
-    const rowsToMerge = filtered.filter(r => selectedReceipts.includes(r.id));
+    const rowsToMerge = data.filter(r => selectedReceipts.includes(r.id));
     if (rowsToMerge.length === 0) return;
 
     const enrichedReceipts = rowsToMerge.map(firstRow => {
@@ -304,12 +304,14 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
                     <input
                       type="checkbox"
                       className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                      checked={selectedReceipts.length > 0 && selectedReceipts.length === filtered.length}
+                      checked={filtered.length > 0 && filtered.every(r => selectedReceipts.includes(r.id))}
                       onChange={(e) => {
                         if (e.target.checked) {
-                          setSelectedReceipts(filtered.map(r => r.id));
+                          const newSelection = Array.from(new Set([...selectedReceipts, ...filtered.map(r => r.id)]));
+                          setSelectedReceipts(newSelection);
                         } else {
-                          setSelectedReceipts([]);
+                          const filteredIds = filtered.map(r => r.id);
+                          setSelectedReceipts(selectedReceipts.filter(id => !filteredIds.includes(id)));
                         }
                       }}
                     />
