@@ -1,16 +1,23 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Search, Map, Upload, ChevronDown, ChevronRight, FileText, User } from 'lucide-react';
+import { Search, Map, Upload, ChevronDown, ChevronRight, FileText, User, Activity } from 'lucide-react';
 import BackLink from '@/components/ui/BackLink';
 import UploadModal from '@/components/documents/UploadModal';
 import DocumentCard from '@/components/documents/DocumentCard';
 import { useRouter } from 'next/navigation';
 
+const STATUS_LABELS: Record<string, string> = {
+  pending: 'Pending (Token)',
+  confirmed: 'Confirmed (Sold)',
+  cancelled: 'Cancelled',
+};
+
 export default function LegalDocumentReportClient({ initialData }: { initialData: any[] }) {
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   // For accordion state
   const [expandedClients, setExpandedClients] = useState<Set<string>>(new Set());
@@ -29,18 +36,40 @@ export default function LegalDocumentReportClient({ initialData }: { initialData
     return Array.from(projects).sort();
   }, [initialData]);
 
-  // Filter the data based on search and project
-  const filteredData = useMemo(() => {
-    return initialData.filter(client => {
-      const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.client_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        client.phone.includes(searchTerm);
-
-      const matchesProject = !projectFilter || client.bookings.some((b: any) => b.project_name === projectFilter);
-
-      return matchesSearch && matchesProject;
+  // Extract unique booking statuses for the filter dropdown
+  const allStatuses = useMemo(() => {
+    const statuses = new Set<string>();
+    initialData.forEach(client => {
+      client.bookings.forEach((b: any) => {
+        if (b.status) statuses.add(b.status);
+      });
     });
-  }, [initialData, searchTerm, projectFilter]);
+    return Array.from(statuses).sort();
+  }, [initialData]);
+
+  // Filter the data based on search, project and booking status
+  const filteredData = useMemo(() => {
+    return initialData
+      .map(client => {
+        const filteredBookings = client.bookings.filter((b: any) => {
+          const matchesProj = !projectFilter || b.project_name === projectFilter;
+          const matchesStat = !statusFilter || b.status === statusFilter;
+          return matchesProj && matchesStat;
+        });
+
+        return {
+          ...client,
+          bookings: filteredBookings
+        };
+      })
+      .filter(client => {
+        const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          client.client_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          client.phone.includes(searchTerm);
+
+        return matchesSearch && client.bookings.length > 0;
+      });
+  }, [initialData, searchTerm, projectFilter, statusFilter]);
 
   const toggleClient = (clientId: string) => {
     const newExpanded = new Set(expandedClients);
@@ -97,6 +126,20 @@ export default function LegalDocumentReportClient({ initialData }: { initialData
             <option value="">All Projects</option>
             {allProjects.map(p => (
               <option key={p} value={p}>{p}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        </div>
+        <div className="relative sm:w-64">
+          <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full pl-9 pr-8 py-2 text-sm border border-gray-300 rounded-lg appearance-none bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+          >
+            <option value="">All Booking Statuses</option>
+            {allStatuses.map(s => (
+              <option key={s} value={s}>{STATUS_LABELS[s] || s.charAt(0).toUpperCase() + s.slice(1)}</option>
             ))}
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />

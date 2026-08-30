@@ -43,22 +43,23 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
     if (i > 0) {
       doc.addPage();
     }
-    
+
     let y = 15;
 
     // Watermark / Logo — pick logo based on company identity
     const companySlug = (data.company_slug || data.company_name || '').toLowerCase();
     const isLLP = companySlug.includes('llp');
-    const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : '/DIDPL-LOGO.png');
+    const isAerotown = companySlug.includes('aerotown');
+    const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : isAerotown ? '/AeroTownLogo.png' : '/DIDPL-LOGO.png');
     try {
       const watermarkImg = new Image();
       watermarkImg.src = logoSrc;
       await new Promise((resolve) => {
-          watermarkImg.onload = resolve;
-          watermarkImg.onerror = () => {
-              console.warn("Failed to load logo image");
-              resolve(null);
-          };
+        watermarkImg.onload = resolve;
+        watermarkImg.onerror = () => {
+          console.warn("Failed to load logo image");
+          resolve(null);
+        };
       });
 
       // Logo
@@ -109,16 +110,16 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
     if (data.client_pincode) {
       line2 += line2 ? ` - ${data.client_pincode}` : `Pincode: ${data.client_pincode}`;
     }
-    
+
     const addrParts = [addressText];
     if (line2) addrParts.push(line2);
 
     const fullAddress = addrParts.join(', ').replace(/\n/g, ', ');
-    
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     const labelWidth = doc.getTextWidth("Address: ");
-    
+
     doc.setFont("helvetica", "normal");
     const addressLines = doc.splitTextToSize(fullAddress, contentWidth - 6 - labelWidth);
     const addressHeight = Math.max(12, addressLines.length * 6 + 6);
@@ -139,7 +140,7 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
 
     // Payment Details Table - Row 1
     const pureAmount = Number(String(data.amount || 0).replace(/,/g, ''));
-    
+
     const wordsStr = toIndianWords(pureAmount);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
@@ -193,14 +194,14 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
 
     // Payment Details Table - Row 3
     doc.rect(margin, y, contentWidth, 8);
-    
+
     // Col 1 - Payment Mode
     doc.setFont("helvetica", "normal");
     doc.text("Payment Mode: ", margin + 2, y + 5.5);
     const modeLabelWidth = doc.getTextWidth("Payment Mode: ");
     doc.setFont("helvetica", "bold");
     doc.text((data.payment_mode || "UPI").toUpperCase(), margin + 2 + modeLabelWidth, y + 5.5);
-    
+
     // Col 2 - Receipt Type
     doc.setFont("helvetica", "normal");
     doc.text("Receipt Type: ", col2X + 2, y + 5.5);
@@ -229,18 +230,18 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
     y += 7;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(12);
-    
+
     const contactText1 = `Tele: ${companyPhone} | Email: `;
     const emailText = companyEmail;
     const contactText2 = ` | ${companyWebsite}`;
-    
+
     const w1 = doc.getTextWidth(contactText1);
     const wEmail = doc.getTextWidth(emailText);
     const w2 = doc.getTextWidth(contactText2);
     const totalW = w1 + wEmail + w2;
-    
+
     let currentX = (pageWidth - totalW) / 2;
-    
+
     doc.text(contactText1, currentX, y);
     currentX += w1;
     doc.setTextColor(0, 51, 153);
@@ -248,7 +249,7 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
     doc.setTextColor(0, 0, 0);
     currentX += wEmail;
     doc.text(contactText2, currentX, y);
-    
+
     y += 12;
 
     // Terms & Conditions — clamped to stay within the page border (pageHeight - 22)
@@ -267,7 +268,7 @@ export const generateMergedReceipt = async (dataArray: any[], preview: boolean =
       "2. ANY PAYMENT RECEIVED WILL BE TREATED AS NON REFUNDABLE DEPOSIT.",
       "3. IN CASE OF DISPUTES, ALL RIGHTS ARE RESERVED BY THE MANAGEMENT.",
       "4. CHEQUE RETURN CHARGES SHALL BE LEVIED RS.500 PER CHEQUE PER TRANSACTION.",
-      "5. THE COMPANY RESERVES ALL RIGHTS TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF CANCELLATION/TERMINATION OF BOOKING.",
+      "5. THE COMPANY RESERVES ALL RIGHTS TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF CANCELLATION OF BOOKING.",
       "6. ANY DISPUTE ARISING SHALL BE SUBJECT TO VADODARA JURISDICTION ONLY.",
       "7. CHEQUES ARE SUBJECT TO REALISATION.",
       "8. FINAL RECEIPT WILL BE ISSUED AFTER VERIFIED BY ACCOUNT DEPARTMENT.",
