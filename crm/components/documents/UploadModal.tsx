@@ -21,16 +21,19 @@ interface Props {
   bookingId: string;
   onClose:  () => void;
   onUploadComplete: () => void;
+  /** 'legal' = show only legal types + mandatory Reference ID. Defaults to 'standard'. */
+  mode?: 'standard' | 'legal';
 }
 
 type UploadState = 'idle' | 'uploading' | 'success' | 'error';
 
-export default function UploadModal({ clientId, bookingId, onClose, onUploadComplete }: Props) {
+export default function UploadModal({ clientId, bookingId, onClose, onUploadComplete, mode = 'standard' }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging,    setDragging]    = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [docType,    setDocType]     = useState('miscellaneous');
   const [description, setDescription] = useState('');
+  const [referenceId, setReferenceId] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [progress,    setProgress]   = useState(0);
@@ -74,6 +77,7 @@ export default function UploadModal({ clientId, bookingId, onClose, onUploadComp
       }
       formData.append('document_type', docType);
       if (description.trim()) formData.append('description', description.trim());
+      if (referenceId.trim()) formData.append('reference_id', referenceId.trim());
 
       setProgress(40);
 
@@ -231,6 +235,22 @@ export default function UploadModal({ clientId, bookingId, onClose, onUploadComp
             />
           </div>
 
+          {/* Reference ID */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Reference ID / Number {mode === 'legal' ? <span className="text-red-500">*</span> : <span className="text-gray-400 font-normal">(optional)</span>}
+            </label>
+            <input
+              type="text"
+              value={referenceId}
+              onChange={e => setReferenceId(e.target.value)}
+              disabled={isUploading}
+              placeholder={mode === 'legal' ? 'e.g. Dastavej number, Index II number' : 'e.g. Registration number (if any)'}
+              className="w-full p-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-60"
+              maxLength={100}
+            />
+          </div>
+
           {/* Progress bar */}
           {uploadState === 'uploading' && (
             <div>
@@ -276,7 +296,7 @@ export default function UploadModal({ clientId, bookingId, onClose, onUploadComp
           </button>
           <button
             onClick={handleUpload}
-            disabled={!selectedFile || isUploading || uploadState === 'success'}
+            disabled={!selectedFile || isUploading || uploadState === 'success' || (mode === 'legal' && !referenceId.trim())}
             className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUploading ? (

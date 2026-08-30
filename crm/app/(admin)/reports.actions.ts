@@ -296,3 +296,50 @@ export async function getExpenseReport() {
 
   return data || []
 }
+
+// ─────────────────────────────────────────────
+// LEGAL DOCUMENT REPORT: Clients and their bookings with uploaded documents
+// ─────────────────────────────────────────────
+export async function getLegalDocumentReport() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select(`
+      id, name, client_code, phone,
+      bookings!bookings_client_id_fkey (
+        id, booking_code, status,
+        plot:plot_id ( plot_number, project:project_id ( name ) ),
+        client_documents (
+          id, file_name, file_size, mime_type, document_type, description, reference_id, uploaded_at, is_deleted
+        )
+      )
+    `)
+    .order('name', { ascending: true })
+
+  if (error) {
+    console.error('getLegalDocumentReport error:', error)
+    return []
+  }
+
+  return (data || []).map((client: any) => {
+    const bookings = (client.bookings || []).map((b: any) => ({
+      id: b.id,
+      booking_code: b.booking_code,
+      status: b.status,
+      plot_number: b.plot?.plot_number || '?',
+      project_name: b.plot?.project?.name || '?',
+      documents: (b.client_documents || [])
+        .filter((d: any) => !d.is_deleted)
+        .sort((a: any, b: any) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())
+    }))
+
+    return {
+      id: client.id,
+      name: client.name || 'Unknown',
+      client_code: client.client_code || '',
+      phone: client.phone || '',
+      bookings
+    }
+  }).filter((c: any) => c.bookings.length > 0)
+}

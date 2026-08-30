@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin
       .from('client_documents')
       .select(
-        'id, file_name, file_size, mime_type, document_type, description, uploaded_by, uploaded_at',
+        'id, file_name, file_size, mime_type, document_type, description, reference_id, uploaded_by, uploaded_at',
         { count: 'exact' }
       )
       .eq('client_id', clientId)

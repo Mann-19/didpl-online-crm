@@ -43,7 +43,7 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
   const companySlug = (data.company_slug || data.company_name || '').toLowerCase();
   const isLLP = companySlug.includes('llp');
   const isAerotown = companySlug.includes('aerotown');
-  const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : isAerotown ? '/AeroTownLogo.jpeg' : '/DIDPL-LOGO.png');
+  const logoSrc = data.company_logo || (isLLP ? '/DIDLLP.png' : isAerotown ? '/AeroTownLogo.png' : '/DIDPL-LOGO.png');
   try {
     const watermarkImg = new Image();
     watermarkImg.src = logoSrc;
@@ -267,7 +267,7 @@ export const generateReceipt = async (data: any, preview: boolean = false) => {
     "2. ANY PAYMENT RECEIVED WILL BE TREATED AS NON REFUNDABLE DEPOSIT.",
     "3. IN CASE OF DISPUTES, ALL RIGHTS ARE RESERVED BY THE MANAGEMENT.",
     "4. CHEQUE RETURN CHARGES SHALL BE LEVIED RS.500 PER CHEQUE PER TRANSACTION.",
-    "5. THE COMPANY RESERVES ALL RIGHTS TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF CANCELLATION/TERMINATION OF BOOKING.",
+    "5. THE COMPANY RESERVES ALL RIGHTS TO FORFEIT ENTIRE AMOUNT SO PAID, IN CASE OF CANCELLATION OF BOOKING.",
     "6. ANY DISPUTE ARISING SHALL BE SUBJECT TO VADODARA JURISDICTION ONLY.",
     "7. CHEQUES ARE SUBJECT TO REALISATION.",
     "8. FINAL RECEIPT WILL BE ISSUED AFTER VERIFIED BY ACCOUNT DEPARTMENT.",

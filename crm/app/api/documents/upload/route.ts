@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
     const bookingId   = formData.get('booking_id')    as string | null;
     const docType     = formData.get('document_type') as string | null;
     const description = formData.get('description')   as string | null;
+    const referenceId = formData.get('reference_id')  as string | null;
 
     if (!file || !clientId || !docType) {
       return NextResponse.json(
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
         mime_type:     file.type,
         document_type: docType,
         description:   description?.trim() || null,
+        reference_id:  referenceId?.trim() || null,
         uploaded_by:   user.id,
       })
       .select()

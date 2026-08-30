@@ -16,6 +16,7 @@ export interface ClientDocument {
   mime_type:     string;
   document_type: string;
   description:   string | null;
+  reference_id:  string | null;
   uploaded_at:   string;
 }
 
@@ -130,6 +131,7 @@ export default function DocumentCard({ document: doc, onDeleted }: Props) {
         </div>
         <p className="text-xs text-gray-400 mt-0.5">
           {formatBytes(doc.file_size)} · {formatDate(doc.uploaded_at)}
+          {doc.reference_id && <span className="ml-2 font-medium text-indigo-600">Ref: {doc.reference_id}</span>}
           {doc.description && <span className="ml-2 text-gray-500">— {doc.description}</span>}
         </p>
         {error && (

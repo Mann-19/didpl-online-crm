@@ -8,6 +8,7 @@ const reports = [
   { id: 'commission', title: 'Commission Report', description: 'Consultant commissions earned, TDS deducted, and balance payable.', icon: Percent, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-100', link: '/reports/commission' },
   { id: 'receipts', title: 'Receipt Report', description: 'Detailed log of all incoming client payments and receipts.', icon: Receipt, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', link: '/reports/receipts' },
   { id: 'expenses', title: 'Expense Report', description: 'Complete record of organizational expenses and petty cash usage.', icon: ReceiptText, color: 'text-rose-600', bg: 'bg-rose-50', border: 'border-rose-100', link: '/reports/expenses' },
+  { id: 'legal-documents', title: 'Legal Document Report', description: 'Client-wise legal documents and bookings tracking with quick upload access.', icon: FileText, color: 'text-indigo-600', bg: 'bg-indigo-50', border: 'border-indigo-100', link: '/reports/legal-documents' },
 ];
 
 export default function ReportsHubPage() {
