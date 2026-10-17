@@ -244,7 +244,7 @@ export async function getReceiptReport() {
       company:company_id(id, name, display_name, primary_phone, primary_email, logo_url, address),
       booking:booking_id (
         client:client_id ( name, client_code, gender, residential_address, residential_city, residential_state, residential_pincode ),
-        plot:plot_id ( plot_number, project:project_id ( name ) ),
+        plot:plot_id ( plot_number, area_sqyd, project:project_id ( name ) ),
         booking_partners ( client:client_id ( name ) )
       )
     `)
@@ -277,6 +277,7 @@ export async function getReceiptReport() {
     client_pincode: p.booking?.client?.residential_pincode || null,
     client_code: p.booking?.client?.client_code || '',
     plot_number: p.booking?.plot?.plot_number || '?',
+    area_sqyd: p.booking?.plot?.area_sqyd || null,
     project_name: p.booking?.plot?.project?.name || '?',
     partner_names: (p.booking?.booking_partners || []).map((bp: any) => bp.client?.name).filter(Boolean),
   }))

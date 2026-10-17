@@ -61,7 +61,15 @@ export default function ConsultantDetailClient({ consultant, isAdmin, role }: an
     setPayoutForm(p => ({ ...p, date: p.date || new Date().toISOString().split('T')[0] }));
   }, []);
 
-  const bookings: any[] = consultant.bookings || [];
+  const bookings: any[] = (consultant.bookings || []).map((b: any) => {
+    const bookingCommission = (b.payments || [])
+      .filter((p: any) => p.entity_type === 'client' && p.transaction_type === 'credit')
+      .reduce((sum: number, p: any) => sum + Number(p.commission_amount || 0), 0);
+    return {
+      ...b,
+      commission_amount: bookingCommission
+    };
+  });
 
   const payouts = consultant.payouts || [];
 

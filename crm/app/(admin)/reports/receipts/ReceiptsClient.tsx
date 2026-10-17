@@ -132,24 +132,46 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
 
   const fmt = (d: string) => d ? new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
+  const reportHeaders = [
+    { label: 'Date', key: (r: any) => fmt(r.payment_date) },
+    { label: 'Receipt No', key: (r: any) => r.receipt_no || 'Manual Entry' },
+    { label: 'Client', key: 'client_name' },
+    { label: 'Client Code', key: (r: any) => r.client_code || 'No Code' },
+    { label: 'Project', key: 'project_name' },
+    { label: 'Plot No.', key: 'plot_number' },
+    { label: 'Sq.Yd', key: (r: any) => r.area_sqyd ? String(r.area_sqyd) : '—' },
+    { label: 'Payment Mode', key: 'payment_mode' },
+    { label: 'Transaction ID', key: (r: any) => r.transaction_id || '—' },
+    { label: 'Receipt Type', key: (r: any) => r.payment_type || 'Plot payment' },
+    { label: 'Description', key: (r: any) => r.description || '—' },
+    { label: 'Amount', key: (r: any) => `Rs. ${formatNumber(r.amount)}` }
+  ];
+
   const handleExport = () => {
     exportToPDF({
       title: 'Receipts Report',
       filename: 'Receipts_Report',
       data: filtered,
-      headers: [
-        { label: 'Date', key: (r) => fmt(r.payment_date) },
-        { label: 'Receipt No', key: (r) => r.receipt_no || 'Manual Entry' },
-        { label: 'Client', key: 'client_name' },
-        { label: 'Client Code', key: (r) => r.client_code || 'No Code' },
-        { label: 'Project', key: 'project_name' },
-        { label: 'Plot No.', key: 'plot_number' },
-        { label: 'Payment Mode', key: 'payment_mode' },
-        { label: 'Transaction ID', key: (r) => r.transaction_id || '—' },
-        { label: 'Receipt Type', key: (r) => r.payment_type || 'Plot payment' },
-        { label: 'Description', key: (r) => r.description || '—' },
-        { label: 'Amount', key: (r) => `Rs. ${formatNumber(r.amount)}` }
-      ]
+      headers: reportHeaders,
+      totalAmount: filtered.reduce((s, r) => s + r.amount, 0),
+    });
+  };
+
+  const handleExportSelected = () => {
+    const selectedSet = new Set(selectedReceipts);
+    const selectedRows = [
+      ...filtered.filter(r => selectedSet.has(r.id)),
+      ...data.filter(r => selectedSet.has(r.id) && !filtered.some(f => f.id === r.id))
+    ];
+
+    if (selectedRows.length === 0) return;
+
+    exportToPDF({
+      title: 'Receipts Report',
+      filename: 'Receipts_Report_Selected',
+      data: selectedRows,
+      headers: reportHeaders,
+      totalAmount: selectedRows.reduce((s, r) => s + r.amount, 0),
     });
   };
 
@@ -286,6 +308,12 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
                   Clear selection
                 </button>
                 <button
+                  onClick={handleExportSelected}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-emerald-300 text-emerald-700 rounded-lg text-sm font-semibold hover:bg-emerald-100/70 transition-colors shadow-sm"
+                >
+                  <Download className="w-4 h-4" /> Export Selected Report
+                </button>
+                <button
                   onClick={handleDownloadMergedReceipt}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-colors shadow-sm"
                 >
@@ -358,7 +386,9 @@ export default function ReceiptsClient({ data, companies = [] }: { data: any[], 
                     </td>
                     <td className="px-4 py-4">
                       <div className="font-semibold text-gray-800">Plot {r.plot_number}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{r.project_name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">
+                        {r.project_name}{r.area_sqyd ? ` • ${r.area_sqyd} sq.yd` : ''}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">

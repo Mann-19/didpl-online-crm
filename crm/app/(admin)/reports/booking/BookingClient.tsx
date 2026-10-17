@@ -10,7 +10,7 @@ import PDFPreviewModal from '@/components/ui/PDFPreviewModal';
 import { generateAllotmentLetter } from '@/utils/pdf/generateAllotmentLetter';
 import BackLink from '@/components/ui/BackLink';
 
-export default function BookingClient({ data }: { data: any[] }) {
+export default function BookingClient({ data, companies = [] }: { data: any[], companies?: any[] }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -23,6 +23,7 @@ export default function BookingClient({ data }: { data: any[] }) {
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<Record<string, string>>({});
 
   const [showStampDuty, setShowStampDuty] = useState(false);
   const [showLegalFees, setShowLegalFees] = useState(false);
@@ -31,12 +32,17 @@ export default function BookingClient({ data }: { data: any[] }) {
 
   const handlePrintAllotmentLetter = async (booking: any) => {
     try {
+      const selectedCompany = companies.find((c: any) => c.id === selectedCompanyIds[booking.id]);
       const payload = {
         name: booking.client_name,
         client_name: booking.client_name,
+        partner_name: booking.partner_names?.length > 0 ? booking.partner_names.join(' & ') : null,
         project_name: booking.project_name,
         plot_number: booking.plot_number,
-        area_sqyd: booking.area_sqyd
+        area_sqyd: booking.area_sqyd,
+        company_name: selectedCompany?.name || null,
+        company_display_name: selectedCompany?.display_name || selectedCompany?.name || null,
+        company_logo: selectedCompany?.logo_url || null,
       };
       const result = await generateAllotmentLetter(payload, true);
       if (result) {
@@ -46,7 +52,7 @@ export default function BookingClient({ data }: { data: any[] }) {
       }
     } catch (e) {
       console.error(e);
-      alert('Failed to generate Welcome Letter');
+      alert('Failed to generate Allotment Letter');
     }
   };
 
@@ -307,12 +313,24 @@ export default function BookingClient({ data }: { data: any[] }) {
                     )} */}
                     <td className="px-4 py-4 text-center">
                       {r.status === 'confirmed' && (
-                        <button
-                          onClick={() => handlePrintAllotmentLetter(r)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded text-xs font-semibold"
-                        >
-                          <Printer className="w-3.5 h-3.5" /> Allotment Letter
-                        </button>
+                        <div className="flex flex-col gap-1 items-center">
+                          <select
+                            className="px-2 py-1 border border-gray-300 rounded text-xs bg-white text-gray-700 w-full outline-none"
+                            value={selectedCompanyIds[r.id] || ''}
+                            onChange={e => setSelectedCompanyIds(prev => ({...prev, [r.id]: e.target.value}))}
+                          >
+                            <option value="">Default Format</option>
+                            {companies.map((c: any) => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => handlePrintAllotmentLetter(r)}
+                            className="flex items-center justify-center w-full gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded text-xs font-semibold"
+                          >
+                            <Printer className="w-3.5 h-3.5 shrink-0" /> Allotment Letter
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

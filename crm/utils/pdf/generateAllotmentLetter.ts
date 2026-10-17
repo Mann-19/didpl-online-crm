@@ -5,33 +5,38 @@ export const generateAllotmentLetter = async (data: any, preview: boolean = fals
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    // Load SVG Letterhead
+    // Load SVG Letterhead or Company Logo
     try {
+        const isDefaultLogo = !data.company_logo;
+        const logoSrc = data.company_logo || '/Letterhead.png';
         const img = new Image();
-        img.src = '/Letterhead.png'; // Ensure this image is in the public directory
-        await new Promise((resolve, reject) => {
+        img.crossOrigin = 'Anonymous';
+        img.src = logoSrc;
+        await new Promise((resolve) => {
             img.onload = resolve;
-            img.onerror = () => {
-                console.warn("Failed to load letterhead image");
-                resolve(null); // Continue without it
-            };
+            img.onerror = resolve; // Continue without it on error
         });
 
-        // Create a canvas to draw the SVG and convert to PNG
-        const canvas = document.createElement('canvas');
-        // Set canvas size matching A4 aspect ratio, scaled up for quality
-        canvas.width = 1190;
-        canvas.height = 1684;
-        const ctx = canvas.getContext('2d');
+        if (isDefaultLogo) {
+            // Create a canvas to draw the SVG and convert to PNG
+            const canvas = document.createElement('canvas');
+            canvas.width = 1190;
+            canvas.height = 1684;
+            const ctx = canvas.getContext('2d');
 
-        if (ctx) {
-            // Draw white background
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const imgData = canvas.toDataURL('image/png');
-            // Add image to PDF
-            doc.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+            if (ctx) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const imgData = canvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+            }
+        } else {
+            // Draw custom company logo at the top center
+            const aspect = img.width / img.height || 1;
+            const h = 30;
+            const w = 30 * aspect;
+            doc.addImage(img, 'PNG', pageWidth / 2 - (w / 2), 15, w, h);
         }
 
     } catch (e) {
@@ -42,8 +47,11 @@ export const generateAllotmentLetter = async (data: any, preview: boolean = fals
     let y = 55; // Start below letterhead
     const margin = 20;
     const contentWidth = pageWidth - (margin * 2);
+    
+    const companyName = data.company_display_name || data.company_name || 'Dholera Infra Development Pvt. Ltd. (DIDPL)';
+    const companyShortName = data.company_name || 'DIDPL';
 
-    const bodyText = `We are pleased to inform you that your unit/plot has been successfully allotted under the project of **Dholera Infra Development Pvt. Ltd. (DIDPL)**.
+    const bodyText = `We are pleased to inform you that your unit/plot has been successfully allotted under the project of **${companyName}**.
 
 The details of your allotment are as follows:
 
@@ -52,7 +60,7 @@ The details of your allotment are as follows:
 **Size:** ${data.area_sqyd || data.plot?.area_sqyd || 'N/A'} sq.yd
 **Location:** Dholera SIR
 
-We sincerely thank you for your trust and association with DIDPL. We assure you of our continued commitment towards transparency, quality, and customer satisfaction.
+We sincerely thank you for your trust and association with ${companyShortName}. We assure you of our continued commitment towards transparency, quality, and customer satisfaction.
 
 For any assistance or further information, please feel free to contact us.
 
@@ -200,7 +208,7 @@ We look forward to a long and valuable relationship with you.`;
     doc.setFont("helvetica", "bold");
     doc.text("Authorized", margin, y);
     y += 6;
-    doc.text("Dholera Infra Development Pvt. Ltd", margin, y);
+    doc.text(companyName, margin, y);
 
     y += 6;
 

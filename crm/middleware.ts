@@ -34,7 +34,26 @@ export async function middleware(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
+
+  // If refresh token is missing or invalid, purge stale Supabase cookies so browser stops repeating the error
+  if (authError) {
+    request.cookies.getAll().forEach((cookie) => {
+      if (cookie.name.startsWith("sb-")) {
+        supabaseResponse.cookies.delete(cookie.name);
+      }
+    });
+  }
+
+  const createRedirect = (url: string | URL) => {
+    const destination = typeof url === "string" ? new URL(url, request.url) : url;
+    const redirectResponse = NextResponse.redirect(destination);
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      redirectResponse.cookies.set(cookie.name, cookie.value, cookie);
+    });
+    return redirectResponse;
+  };
 
   const path = request.nextUrl.pathname;
 
@@ -53,16 +72,16 @@ export async function middleware(request: NextRequest) {
         .eq("id", user.id)
         .single();
       if (profile?.role === "client") {
-        return NextResponse.redirect(new URL("/my-portal", request.url));
+        return createRedirect("/my-portal");
       }
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return createRedirect("/dashboard");
     }
     return supabaseResponse;
   }
 
   // Not logged in
   if (!user) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return createRedirect("/login");
   }
 
   // === 10-Minute Inactivity Check ===
@@ -74,9 +93,7 @@ export async function middleware(request: NextRequest) {
     if (now - lastActive > INACTIVITY_TIMEOUT_MS) {
       // Session expired! Sign out and redirect to login
       await supabase.auth.signOut();
-      const response = NextResponse.redirect(
-        new URL("/login?expired=true", request.url),
-      );
+      const response = createRedirect("/login?expired=true");
       response.cookies.delete("last_active");
       return response;
     }
@@ -96,11 +113,11 @@ export async function middleware(request: NextRequest) {
   if (role === "client") {
     // Clients can only access /my-portal and /my-deal
     if (!path.startsWith("/my-portal") && !path.startsWith("/my-deal")) {
-      return NextResponse.redirect(new URL("/my-portal", request.url));
+      return createRedirect("/my-portal");
     }
   } else if (role === "admin" || role === "employee") {
     if (path.startsWith("/my-portal") || path.startsWith("/my-deal")) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return createRedirect("/dashboard");
     }
 
     // Only admins can access these routes
@@ -111,11 +128,11 @@ export async function middleware(request: NextRequest) {
         path.startsWith("/expenses") ||
         path.startsWith("/approvals")) // ← ADD THIS LINE
     ) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return createRedirect("/dashboard");
     }
 
     if (path === "/") {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return createRedirect("/dashboard");
     }
   }
 

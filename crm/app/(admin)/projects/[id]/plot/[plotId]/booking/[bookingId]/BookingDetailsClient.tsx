@@ -36,6 +36,7 @@ export default function BookingDetailsClient({
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
 
   // Transfer Modal
@@ -240,13 +241,17 @@ export default function BookingDetailsClient({
 
   const handlePrintAllotmentLetter = async () => {
     try {
+      const selectedCompany = companies.find((c: any) => c.id === selectedCompanyId);
       const payload = {
         name: booking.client?.name,
         client_name: booking.client?.name,
         partner_name: (booking.booking_partners || []).length > 0 ? booking.booking_partners.map((bp: any) => bp.client?.name).filter(Boolean).join(' & ') : null,
         project_name: booking.plot?.project?.name,
         plot_number: booking.plot?.plot_number,
-        area_sqyd: booking.plot?.area_sqyd
+        area_sqyd: booking.plot?.area_sqyd,
+        company_name: selectedCompany?.name || null,
+        company_display_name: selectedCompany?.display_name || selectedCompany?.name || null,
+        company_logo: selectedCompany?.logo_url || null,
       };
       const result = await generateAllotmentLetter(payload, true);
       if (result) {
@@ -528,12 +533,24 @@ export default function BookingDetailsClient({
             </button>
           )}
           {isAdmin && isConfirmed && (
-            <button
-              onClick={handlePrintAllotmentLetter}
-              className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors"
-            >
-              <Printer className="w-4 h-4" /> Print Allotment Letter
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                value={selectedCompanyId}
+                onChange={e => setSelectedCompanyId(e.target.value)}
+              >
+                <option value="">Default Format</option>
+                {companies.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handlePrintAllotmentLetter}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors"
+              >
+                <Printer className="w-4 h-4" /> Print Allotment Letter
+              </button>
+            </div>
           )}
           {isMasterAdmin && (
             <button

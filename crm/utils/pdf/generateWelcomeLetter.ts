@@ -5,33 +5,38 @@ export const generateWelcomeLetter = async (data: any, type: string = 'client', 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
 
-    // Load SVG Letterhead
+    // Load SVG Letterhead or Company Logo
     try {
+        const isDefaultLogo = !data.company_logo;
+        const logoSrc = data.company_logo || '/Letterhead.png';
         const img = new Image();
-        img.src = '/Letterhead.png'; // Ensure this image is in the public directory
-        await new Promise((resolve, reject) => {
+        img.crossOrigin = 'Anonymous';
+        img.src = logoSrc;
+        await new Promise((resolve) => {
             img.onload = resolve;
-            img.onerror = () => {
-                console.warn("Failed to load letterhead image");
-                resolve(null); // Continue without it
-            };
+            img.onerror = resolve; // Continue without it on error
         });
 
-        // Create a canvas to draw the SVG and convert to PNG
-        const canvas = document.createElement('canvas');
-        // Set canvas size matching A4 aspect ratio, scaled up for quality
-        canvas.width = 1190;
-        canvas.height = 1684;
-        const ctx = canvas.getContext('2d');
+        if (isDefaultLogo) {
+            // Create a canvas to draw the SVG and convert to PNG
+            const canvas = document.createElement('canvas');
+            canvas.width = 1190;
+            canvas.height = 1684;
+            const ctx = canvas.getContext('2d');
 
-        if (ctx) {
-            // Draw white background
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            const imgData = canvas.toDataURL('image/png');
-            // Add image to PDF
-            doc.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+            if (ctx) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                const imgData = canvas.toDataURL('image/png');
+                doc.addImage(imgData, 'PNG', 0, 0, pageWidth, pageHeight);
+            }
+        } else {
+            // Draw custom company logo at the top center
+            const aspect = img.width / img.height || 1;
+            const h = 30;
+            const w = 30 * aspect;
+            doc.addImage(img, 'PNG', pageWidth / 2 - (w / 2), 15, w, h);
         }
 
     } catch (e) {
@@ -44,50 +49,53 @@ export const generateWelcomeLetter = async (data: any, type: string = 'client', 
     const contentWidth = pageWidth - (margin * 2);
 
     // Content Configuration based on Type
+    const companyName = data.company_display_name || data.company_name || 'Dholera Infra Development Pvt. Ltd. (DIDPL)';
+    const companyShortName = data.company_name || 'DIDPL';
+    
     const contentMap: any = {
         client: {
-            body: (name: string) => `We are pleased to extend our warmest welcome to you as a valued member of the **Dholera Infra Development Pvt. Ltd. (DIDPL)** family.
+            body: (name: string) => `We are pleased to extend our warmest welcome to you as a valued member of the **${companyName}** family.
 
-Your investment in **Dholera Infra Development Pvt. Ltd.** reflects your confidence in our vision, commitment, and the future potential of **Dholera SIR**. We sincerely appreciate the trust you have placed in us and assure you that we remain fully dedicated to delivering transparency, quality, and long-term value at every step of your investment journey.
+Your investment in **${companyName}** reflects your confidence in our vision, commitment, and the future potential of **Dholera SIR**. We sincerely appreciate the trust you have placed in us and assure you that we remain fully dedicated to delivering transparency, quality, and long-term value at every step of your investment journey.
 
-At DIDPL, we believe that every customer is not just an investor, but a partner in progress. We are confident that your association with us will lead to a future that is both healthy and wealthy, filled with growth, prosperity, and peace of mind.
+At ${companyShortName}, we believe that every customer is not just an investor, but a partner in progress. We are confident that your association with us will lead to a future that is both healthy and wealthy, filled with growth, prosperity, and peace of mind.
 
 Should you require any assistance, updates, or support, our team is always at your service.
 
-Once again, welcome to the DIDPL family. We look forward to a strong and enduring relationship.`
+Once again, welcome to the ${companyShortName} family. We look forward to a strong and enduring relationship.`
         },
         investor: {
-            body: (name: string) => `We are delighted to welcome you as a valued Investor with **Dholera Infra Development Pvt. Ltd. (DIDPL)**. Thank you for placing your trust and confidence in us. Your association is highly appreciated, and we look forward to a rewarding and transparent investment journey together.
+            body: (name: string) => `We are delighted to welcome you as a valued Investor with **${companyName}**. Thank you for placing your trust and confidence in us. Your association is highly appreciated, and we look forward to a rewarding and transparent investment journey together.
 
-DIDPL is committed to developing and promoting well-planned real estate opportunities in **Dholera SIR** - India's first Greenfield Smart City, supported by strong government vision, infrastructure development, and long-term growth potential. Our focus remains on delivering value-driven projects with clarity, compliance, and future appreciation.
+${companyShortName} is committed to developing and promoting well-planned real estate opportunities in **Dholera SIR** - India's first Greenfield Smart City, supported by strong government vision, infrastructure development, and long-term growth potential. Our focus remains on delivering value-driven projects with clarity, compliance, and future appreciation.
 
 As an investor, you will receive timely updates regarding your investment, project progress, and relevant developments. Our dedicated team is always available to assist you with information, documentation, and any support you may require.
 
-We value long-term relationships built on trust, integrity, and performance, and we are confident that your association with DIDPL will be both secure and beneficial.
+We value long-term relationships built on trust, integrity, and performance, and we are confident that your association with ${companyShortName} will be both secure and beneficial.
 
-Once again, welcome to the DIDPL family. We look forward to growing together.`
+Once again, welcome to the ${companyShortName} family. We look forward to growing together.`
         },
         consultant: {
-            body: (name: string) => `We are pleased to welcome you as a Consultant with **Dholera Infra Development Pvt. Ltd. (DIDPL)**. We appreciate your decision to associate with us and look forward to a mutually beneficial professional relationship.
+            body: (name: string) => `We are pleased to welcome you as a Consultant with **${companyName}**. We appreciate your decision to associate with us and look forward to a mutually beneficial professional relationship.
 
-DIDPL is actively involved in the development and promotion of projects in **Dholera SIR** - India's first Greenfield Smart City. Your expertise, industry knowledge, and professional insights will add significant value to our operations and help us achieve our strategic objectives.
+${companyShortName} is actively involved in the development and promotion of projects in **Dholera SIR** - India's first Greenfield Smart City. Your expertise, industry knowledge, and professional insights will add significant value to our operations and help us achieve our strategic objectives.
 
-Your engagement as Consultant will be effective from ** [Start Date] **, as per the mutually agreed terms and conditions. During this association, we trust that you will uphold the highest standards of professionalism, confidentiality, and ethical conduct while representing DIDPL.
+Your engagement as Consultant will be effective from ** [Start Date] **, as per the mutually agreed terms and conditions. During this association, we trust that you will uphold the highest standards of professionalism, confidentiality, and ethical conduct while representing ${companyShortName}.
 
 Our team will coordinate with you regarding scope of work, communication protocols, and other operational details. Should you require any assistance or clarification, please feel free to connect with your point of contact or the management team.
 
 We look forward to a successful association and wish you every success in your role as our Consultant.`
         },
         employee: {
-            body: (name: string) => `We are pleased to welcome you to **Dholera Infra Development Pvt. Ltd. (DIDPL)**. Congratulations on joining our team, and we are delighted to have you onboard.
+            body: (name: string) => `We are pleased to welcome you to **${companyName}**. Congratulations on joining our team, and we are delighted to have you onboard.
 
-At DIDPL, we are committed to building trust, transparency, and long-term value while contributing to the growth of **Dholera SIR** - India's first Greenfield Smart City. Your skills, experience, and enthusiasm will play an important role in helping us achieve our goals, and we believe you will be a valuable addition to our organization.
+At ${companyShortName}, we are committed to building trust, transparency, and long-term value while contributing to the growth of **Dholera SIR** - India's first Greenfield Smart City. Your skills, experience, and enthusiasm will play an important role in helping us achieve our goals, and we believe you will be a valuable addition to our organization.
 
 Your appointment as **[Designation]** will commence from **[Joining Date]**. We are confident that your contribution will help strengthen our team and support our vision of creating sustainable and future-ready developments.
 
 Our team will assist you with the onboarding process and provide you with all necessary information regarding your role, responsibilities, and company policies. Should you have any questions or need support, please feel free to reach out to your reporting manager or the HR team at any time.
 
-Once again, welcome to DIDPL. We look forward to a successful and rewarding association with you.`
+Once again, welcome to ${companyShortName}. We look forward to a successful and rewarding association with you.`
         }
     };
 
@@ -244,7 +252,7 @@ Once again, welcome to DIDPL. We look forward to a successful and rewarding asso
     doc.setFont("helvetica", "bold");
     doc.text("Authorized", margin, y);
     y += 6;
-    doc.text("Dholera Infra Development Pvt. Ltd", margin, y);
+    doc.text(companyName, margin, y);
 
     y += 6;
 

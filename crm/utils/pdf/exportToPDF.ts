@@ -6,9 +6,11 @@ interface ExportConfig {
   filename: string;
   data: any[];
   headers: { label: string; key: string | ((row: any) => string) }[];
+  /** Optional total amount to display as a summary footer row (e.g. sum of payments) */
+  totalAmount?: number;
 }
 
-export function exportToPDF({ title, filename, data, headers }: ExportConfig) {
+export function exportToPDF({ title, filename, data, headers, totalAmount }: ExportConfig) {
   if (!data || data.length === 0) {
     alert("No data available to export");
     return;
@@ -41,10 +43,30 @@ export function exportToPDF({ title, filename, data, headers }: ExportConfig) {
     })
   );
 
+  // Build footer row if totalAmount is provided
+  const colCount = headers.length;
+  const foot = totalAmount !== undefined
+    ? [[
+        {
+          content: `${data.length} record${data.length !== 1 ? 's' : ''} | Total Payment: Rs. ${totalAmount.toLocaleString('en-IN')}`,
+          colSpan: colCount,
+          styles: {
+            halign: 'right' as const,
+            fontStyle: 'bold' as const,
+            fillColor: [6, 95, 70] as [number, number, number],
+            textColor: 255,
+            fontSize: 10,
+          }
+        }
+      ]]
+    : undefined;
+
   autoTable(doc, {
     startY: 40,
     head: head,
     body: body,
+    foot: foot,
+    showFoot: 'lastPage',
     theme: 'grid',
     headStyles: { fillColor: [16, 185, 129], textColor: 255, fontStyle: 'bold' }, // Emerald-500
     styles: { fontSize: 9, cellPadding: 3 },
@@ -53,3 +75,4 @@ export function exportToPDF({ title, filename, data, headers }: ExportConfig) {
 
   doc.save(`${filename}.pdf`);
 }
+

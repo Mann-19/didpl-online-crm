@@ -48,6 +48,7 @@ export default function ClientDetailClient({ client, isAdmin, role, companies = 
   
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const [pdfFileName, setPdfFileName] = useState('');
+  const [selectedCompanyId, setSelectedCompanyId] = useState('');
 
   const [editForm, setEditForm] = useState({
     name: client.name || '',
@@ -111,9 +112,13 @@ export default function ClientDetailClient({ client, isAdmin, role, companies = 
 
   const handlePrintWelcomeLetter = async () => {
     try {
+      const selectedCompany = companies.find((c: any) => c.id === selectedCompanyId);
       const payload = {
         name: client.name,
         client_name: client.name,
+        company_name: selectedCompany?.name || null,
+        company_display_name: selectedCompany?.display_name || selectedCompany?.name || null,
+        company_logo: selectedCompany?.logo_url || null,
       };
       const result = await generateWelcomeLetter(payload, 'client', true);
       if (result) {
@@ -207,13 +212,25 @@ export default function ClientDetailClient({ client, isAdmin, role, companies = 
               <Edit2 className="w-4 h-4" />
               {isEmployee ? 'Request Edit' : 'Edit Profile'}
             </button>
-            <button
-              onClick={handlePrintWelcomeLetter}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm font-semibold text-blue-700 hover:bg-blue-100 shadow-sm"
-            >
-              <Printer className="w-4 h-4" />
-              Welcome Letter
-            </button>
+            <div className="flex items-center gap-2">
+              <select
+                className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
+                value={selectedCompanyId}
+                onChange={e => setSelectedCompanyId(e.target.value)}
+              >
+                <option value="">Default Format</option>
+                {companies.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handlePrintWelcomeLetter}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm font-semibold text-blue-700 hover:bg-blue-100 shadow-sm"
+              >
+                <Printer className="w-4 h-4" />
+                Welcome Letter
+              </button>
+            </div>
             {isMasterAdmin && (
               <button
                 onClick={handleDeleteClient}

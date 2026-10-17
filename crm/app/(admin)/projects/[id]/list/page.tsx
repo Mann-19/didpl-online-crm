@@ -1,8 +1,12 @@
 import { getProjectOverview, getProjectPlots } from "../../../projects.actions";
+import { getFlexPlots } from "@/app/(admin)/flex-plots.actions";
+import { getClients, getConsultants } from "@/app/(admin)/people.actions";
+import { createClient } from "@/utils/supabase/server";
 import ProjectNav from "@/components/projects/ProjectNav";
 import BackLink from "@/components/ui/BackLink";
 import { notFound } from "next/navigation";
 import PlotsDataTable from "@/components/projects/PlotsDataTable";
+import FlexListClient from "@/components/projects/flex/FlexListClient";
 
 export default async function ProjectPlotsListPage({
   params,
@@ -29,6 +33,35 @@ export default async function ProjectPlotsListPage({
   }
 
   const { project } = overview;
+
+  // Branch for flex projects
+  if (project.plot_structure === 'flex') {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user?.id)
+      .single();
+
+    const role = profile?.role ?? 'employee';
+
+    const [flexPlots, clients, consultants] = await Promise.all([
+      getFlexPlots(projectId),
+      getClients(),
+      getConsultants(),
+    ]);
+
+    return (
+      <FlexListClient
+        project={project}
+        plots={flexPlots}
+        clients={clients}
+        consultants={consultants}
+        role={role}
+      />
+    );
+  }
 
   let displayPlots = plots;
   if (status === "available") {
