@@ -1,13 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import { User, Phone, Mail, MapPin, CheckCircle, TrendingUp, DollarSign, Calendar, Plus } from 'lucide-react';
+import { User, Phone, Mail, MapPin, CheckCircle, TrendingUp, DollarSign, Calendar, Plus, Edit2 } from 'lucide-react';
 import BackLink from '@/components/ui/BackLink';
 import Badge from '@/components/ui/Badge';
 import { addInvestment, settleInvestment } from '../../investors.actions';
+import EditInvestorModal from '../components/EditInvestorModal';
+import EditInvestmentModal from '../components/EditInvestmentModal';
 
-export default function InvestorDetailsClient({ investor }: { investor: any }) {
+export default function InvestorDetailsClient({
+  investor: initialInvestor,
+  referrers = [],
+}: {
+  investor: any;
+  referrers?: any[];
+}) {
+  const [investor, setInvestor] = useState(initialInvestor);
   const [isAddingInvestment, setIsAddingInvestment] = useState(false);
+  const [isEditingInvestor, setIsEditingInvestor] = useState(false);
+  const [editingInvestment, setEditingInvestment] = useState<any | null>(null);
+
   const [formData, setFormData] = useState({
     invested_amount: '',
     interest_rate: '',
@@ -48,7 +60,7 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
     const rate = Number(formData.interest_rate) || 0;
     const mature = amount + (amount * rate / 100);
 
-    await addInvestment(investor.id, {
+    const result = await addInvestment(investor.id, {
       invested_amount: amount,
       interest_rate: rate,
       mature_amount: mature,
@@ -57,6 +69,13 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
       transaction_id: formData.transaction_id,
     });
 
+    if (result.success && result.data) {
+      setInvestor((prev: any) => ({
+        ...prev,
+        investments: [result.data, ...(prev.investments || [])],
+      }));
+    }
+
     setIsSubmitting(false);
     setIsAddingInvestment(false);
     setFormData({ invested_amount: '', interest_rate: '', mature_date: '', payment_mode: 'bank_transfer', transaction_id: '' });
@@ -64,8 +83,39 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
 
   const handleSettle = async (investmentId: string) => {
     if (confirm('Are you sure you want to mark this investment as settled?')) {
-      await settleInvestment(investmentId, investor.id);
+      const res = await settleInvestment(investmentId, investor.id);
+      if (res.success && res.data) {
+        setInvestor((prev: any) => ({
+          ...prev,
+          investments: (prev.investments || []).map((i: any) =>
+            i.id === investmentId ? { ...i, ...res.data } : i
+          ),
+        }));
+      }
     }
+  };
+
+  const handleInvestmentUpdated = (updatedInv: any) => {
+    setInvestor((prev: any) => ({
+      ...prev,
+      investments: (prev.investments || []).map((i: any) =>
+        i.id === updatedInv.id ? { ...i, ...updatedInv } : i
+      ),
+    }));
+  };
+
+  const handleInvestmentDeleted = (deletedId: string) => {
+    setInvestor((prev: any) => ({
+      ...prev,
+      investments: (prev.investments || []).filter((i: any) => i.id !== deletedId),
+    }));
+  };
+
+  const handleInvestorUpdated = (updatedProfile: any) => {
+    setInvestor((prev: any) => ({
+      ...prev,
+      ...updatedProfile,
+    }));
   };
 
   const theme = {
@@ -85,13 +135,23 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
               {(investor.name || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                {investor.name}
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-gray-900">{investor.name}</h1>
                 <Badge variant={stats.activeInvestmentsCount > 0 ? "warning" : "indigo"}>
                   {stats.activeInvestmentsCount} Active
                 </Badge>
-              </h1>
-              <p className="text-sm text-gray-500 mt-1">Code: <span className="font-medium text-gray-700">{investor.investor_code}</span></p>
+              </div>
+              <div className="flex items-center gap-4 mt-1">
+                <p className="text-sm text-gray-500">
+                  Code: <span className="font-mono font-medium text-gray-700">{investor.investor_code || '---'}</span>
+                </p>
+                <button
+                  onClick={() => setIsEditingInvestor(true)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md transition-colors"
+                >
+                  <Edit2 className="w-3 h-3" /> Edit Profile
+                </button>
+              </div>
             </div>
           </div>
 
@@ -160,6 +220,7 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
                   <option value="bank_transfer">Bank Transfer</option>
                   <option value="cash">Cash</option>
                   <option value="cheque">Cheque</option>
+                  <option value="upi">UPI</option>
                 </select>
               </div>
               <div>
@@ -191,10 +252,10 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
             </thead>
             <tbody className="divide-y divide-gray-200">
               {investor.investments?.length > 0 ? (
-                investor.investments.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((inv: any) => (
+                investor.investments.sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).map((inv: any) => (
                   <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 text-sm font-medium text-gray-900">{inv.investment_code || '---'}</td>
-                    <td className="p-4 text-sm text-gray-600">{new Date(inv.investment_date).toLocaleDateString()}</td>
+                    <td className="p-4 text-sm font-mono font-medium text-gray-900">{inv.investment_code || '---'}</td>
+                    <td className="p-4 text-sm text-gray-600">{inv.investment_date ? new Date(inv.investment_date).toLocaleDateString() : '---'}</td>
                     <td className="p-4 text-sm font-medium text-gray-900">₹{Number(inv.invested_amount).toLocaleString()}</td>
                     <td className="p-4 text-sm text-gray-600">{inv.interest_rate}%</td>
                     <td className="p-4 text-sm font-medium text-emerald-600">₹{Number(inv.mature_amount).toLocaleString()}</td>
@@ -205,16 +266,28 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
                       </Badge>
                     </td>
                     <td className="p-4 text-sm text-right">
-                      {inv.status === 'pending' ? (
+                      <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handleSettle(inv.id)}
-                          className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline"
+                          onClick={() => setEditingInvestment(inv)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-700 bg-white hover:bg-gray-100 border border-gray-200 rounded-md transition-colors"
+                          title="Edit Investment"
                         >
-                          Mark Settled
+                          <Edit2 className="w-3 h-3 text-indigo-600" />
+                          <span>Edit</span>
                         </button>
-                      ) : (
-                        <span className="text-xs text-gray-400">Settled on {inv.exit_date ? new Date(inv.exit_date).toLocaleDateString() : 'N/A'}</span>
-                      )}
+                        {inv.status === 'pending' ? (
+                          <button
+                            onClick={() => handleSettle(inv.id)}
+                            className="text-xs font-medium text-indigo-600 hover:text-indigo-900 hover:underline"
+                          >
+                            Mark Settled
+                          </button>
+                        ) : (
+                          <span className="text-xs text-gray-400">
+                            Settled on {inv.exit_date ? new Date(inv.exit_date).toLocaleDateString() : 'N/A'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -229,6 +302,24 @@ export default function InvestorDetailsClient({ investor }: { investor: any }) {
           </table>
         </div>
       </div>
+
+      {/* Edit Investor Profile Modal */}
+      <EditInvestorModal
+        isOpen={isEditingInvestor}
+        onClose={() => setIsEditingInvestor(false)}
+        investor={investor}
+        referrers={referrers}
+        onSuccess={handleInvestorUpdated}
+      />
+
+      {/* Edit Investment Modal */}
+      <EditInvestmentModal
+        isOpen={!!editingInvestment}
+        onClose={() => setEditingInvestment(null)}
+        investment={editingInvestment}
+        onSuccess={handleInvestmentUpdated}
+        onDelete={handleInvestmentDeleted}
+      />
     </div>
   );
 }
