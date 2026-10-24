@@ -47,7 +47,7 @@ export async function getProjectsWithStats() {
 
 // 2. Get Single Project Details
 export async function getProjectOverview(projectId: string) {
-  const supabase = await createClient()
+  const supabase = await createClient() 
 
   const { data: project, error: projectError } = await supabase
     .from('projects')
